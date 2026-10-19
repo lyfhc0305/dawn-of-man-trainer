@@ -1,0 +1,20 @@
+# Local builds and generated release files
+/DawnOfManTrainer.dll
+/Installer.exe
+*.pdb
+*.zip
+bin/
+obj/
+work/
+*.user
+*.suo
+
+# Local preferences, saves, and game files
+preferences.ini
+test-preferences.ini
+*.sav
+Assembly-CSharp.dll*
+UnityEngine*.dll
+resources.assets
+.env
+.env.*

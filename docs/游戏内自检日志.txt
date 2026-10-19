@@ -1,0 +1,108 @@
+﻿最终交付版本 1.3.1，真实游戏运行的诊断日志节选；来自 game-release.log。
+
+[DawnTrainer] Loaded 1.3.1; F11 toggles panel
+[DawnTrainer.Test] Loading temporary unsaved world: Scenarios/Freeplay/ContinentalDawn/continental_dawn.scn
+[DawnTrainer] Catalog: 87 resources; 31 animals
+[DawnTrainer.Test] PASS resource catalog available: 87
+[DawnTrainer.Test] PASS animal catalog available: 31
+[DawnTrainer.Test] PASS locked Health
+[DawnTrainer.Test] PASS locked Nutrition
+[DawnTrainer.Test] PASS locked Hydration
+[DawnTrainer.Test] PASS locked Temperature
+[DawnTrainer.Test] PASS locked Stamina
+[DawnTrainer.Test] PASS locked Rest
+[DawnTrainer.Test] PASS locked Morale
+[DawnTrainer.Test] PASS unrelated stats remain normal
+[DawnTrainer.Test] PASS disabling lock restores decay
+[DawnTrainer] 已添加 10 知识点
+[DawnTrainer.Test] PASS knowledge +10 exact delta
+[DawnTrainer.Test] PASS speed 1
+[DawnTrainer.Test] PASS speed 2
+[DawnTrainer.Test] PASS speed 4
+[DawnTrainer.Test] PASS speed 8
+[DawnTrainer.Test] PASS speed 15
+[DawnTrainer.Test] PASS pause
+[DawnTrainer.Test] PASS resume previous speed
+[DawnTrainer.Test] PASS spawn all resource types with icons: 87/87
+[DawnTrainer.Test] PASS spawn all animal types / age / gender: 31/31
+[DawnTrainer] 已杀死 1 个选中单位
+[DawnTrainer.Test] PASS kill selected animal
+[DawnTrainer] 请先选中活着的人物或动物
+[DawnTrainer.Test] PASS dead selection is ignored
+[DawnTrainer] 已完成 1 个选中建筑 / 运输工具
+[DawnTrainer.Test] PASS instant construction without materials
+[DawnTrainer.Test] PASS instant construction records first build count
+[DawnTrainer.Test] PASS instant construction awards first build knowledge
+[DawnTrainer] 请先关闭面板，选中未完工的建筑
+[DawnTrainer.Test] PASS repeated construction gives no duplicate count or reward
+[DawnTrainer] 请先选中活着的人物或动物
+[DawnTrainer] 请先关闭面板，选中未完工的建筑
+[DawnTrainer.Test] PASS empty selection safe
+[DawnTrainer.Test] PASS weather Rainy
+[DawnTrainer.Test] PASS weather Snowy
+[DawnTrainer.Test] PASS weather Storm
+[DawnTrainer.Test] PASS weather Blizzard
+[DawnTrainer.Test] PASS weather Sunny
+[DawnTrainer] 正在添加 生肉 × 37
+[DawnTrainer] 已添加 生肉 × 37，已在地图地面生成
+[DawnTrainer.Test] PASS batched resource spawn exact quantity 37
+[DawnTrainer] 正在添加 洞熊 × 3
+[DawnTrainer] 已添加 洞熊 × 3，已在地图地面生成
+[DawnTrainer.Test] PASS batched animal spawn exact quantity 3
+[DawnTrainer.Test] PASS runtime manual pause from native 8x
+[DawnTrainer.Test] PASS runtime manual resume restores native 8x
+[DawnTrainer.Test] PASS runtime manual pause preserves quarter speed
+[DawnTrainer.Test] PASS runtime overlay pauses quarter speed
+[DawnTrainer.Test] PASS runtime overlay speed selection stays paused
+[DawnTrainer.Test] PASS runtime overlay close restores chosen half speed
+[DawnTrainer.Test] PASS runtime originally paused world remains unowned
+[DawnTrainer.Test] PASS runtime originally paused overlay holds explicitly selected 8x
+[DawnTrainer.Test] PASS runtime originally paused overlay applies 8x only on close
+[DawnTrainer.Test] PASS runtime speed actions do not release native real pause
+[DawnTrainer] 已恢复 1 个选中单位的健康值
+[DawnTrainer.Test] PASS runtime selected health rescue leaves other survival stats unchanged
+[DawnTrainer] 已恢复 1 个选中单位的生存状态
+[DawnTrainer.Test] PASS runtime selected survival rescue fills all seven human stats
+[DawnTrainer.Test] PASS runtime rescue does not change unselected residents
+[DawnTrainer] 请先选择存活的玩家人物或家畜
+[DawnTrainer.Test] PASS runtime rescue ignores wild or non-player animals
+[DawnTrainer] 已完成 1 个选中建筑 / 运输工具
+[DawnTrainer] 已恢复 1 个选中建筑的状态
+[DawnTrainer.Test] PASS runtime structure repair restores condition through native model path
+[DawnTrainer] 已恢复 1 件选中工具 / 衣物的耐久
+[DawnTrainer.Test] PASS runtime selected tool durability restores to full
+[DawnTrainer] 已恢复 0 件选中工具 / 衣物的耐久
+[DawnTrainer.Test] PASS runtime durability action leaves non-tool food unchanged
+[DawnTrainer.Test] PASS runtime missing-material preview clones without delivering or deleting materials
+[DawnTrainer.Test] PASS runtime native capture eligibility accepts unlocked young wolf
+[DawnTrainer] 已将 1 只符合条件的动物转为对应家畜
+[DawnTrainer.Test] PASS runtime taming creates domestic variant and retires wild original
+[DawnTrainer.Test] PASS runtime native capture eligibility rejects adult wild animal
+[DawnTrainer.Test] PASS runtime test settlement has housing for migrants
+[DawnTrainer] 已有 3 名移民，将从地图边缘前来
+[DawnTrainer.Test] PASS runtime invite creates actual edge migrants
+[DawnTrainer.Test] PASS runtime duplicate migrant invitation is blocked
+[DawnTrainer] 商队已出发，将从地图边缘前来
+[DawnTrainer.Test] PASS runtime invite creates actual native trader party
+[DawnTrainer.Test] PASS runtime duplicate trader invitation is blocked
+[DawnTrainer.Test] PASS runtime favorites persist in isolated preference file
+[DawnTrainer.Test] PASS runtime key validation protects actual F8 game binding
+[DawnTrainer] 正在添加 建筑缺料补给，共 6 件
+[DawnTrainer] 已添加 建筑缺料补给 × 6，已在地图地面生成
+[DawnTrainer.Test] PASS runtime building supply generates exact native missing-material quantities
+[DawnTrainer.Test] PASS runtime building supply leaves blueprint and delivery tasks intact
+[DawnTrainer] 正在添加 运行时快照测试，共 26 件
+[DawnTrainer] 已添加 运行时快照测试 × 26，已在地图地面生成
+[DawnTrainer.Test] PASS runtime pack executes captured multi-resource snapshot after editing source
+[DawnTrainer] 正在添加 停止测试，共 100 件
+[DawnTrainer] 已停止后续生成，已生成的 12 件会保留在地图
+[DawnTrainer.Test] PASS runtime cancel preserves generated batch and stops remaining 88 items
+[DawnTrainer.Test] RESULT passed=67 failed=0
+[DawnTrainer] 所有持续开关已关闭，速度恢复 1 倍
+[DawnTrainer] 自检完成；当前为未保存的测试地图
+[DawnTrainer.UI] nav.3 mouseDown clicked=False hot=24
+[DawnTrainer.UI] nav.3 mouseUp clicked=True hot=0
+[DawnTrainer.UI] speed.0.25 mouseDown clicked=False hot=36
+[DawnTrainer.UI] speed.0.25 mouseUp clicked=True hot=0
+[DawnTrainer.UI] nav.0 mouseDown clicked=False hot=19
+[DawnTrainer.UI] nav.0 mouseUp clicked=True hot=0

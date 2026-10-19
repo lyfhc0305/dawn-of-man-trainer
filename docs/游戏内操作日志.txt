@@ -1,0 +1,44 @@
+﻿1.3.1 实际鼠标键盘检查日志节选；来自 game-final.log。
+该轮完成标签页 / 数量状态和图标修复，后续仅修正概览显示并再次运行全部自检。
+
+[DawnTrainer] 所有持续开关已关闭，速度恢复 1 倍
+[DawnTrainer] 自检完成；当前为未保存的测试地图
+[DawnTrainer.UI] nav.1 mouseDown clicked=False hot=21
+[DawnTrainer.UI] nav.1 mouseUp clicked=True hot=0
+[DawnTrainer.UI] item.flint_axe mouseDown clicked=False hot=87
+[DawnTrainer.UI] item.flint_axe mouseUp clicked=True hot=0
+[DawnTrainer.UI] quantity.plus mouseDown clicked=False hot=94
+[DawnTrainer.UI] quantity.plus mouseUp clicked=True hot=0
+[DawnTrainer.UI] spawn mouseDown clicked=False hot=103
+[DawnTrainer.UI] spawn mouseUp clicked=True hot=0
+[DawnTrainer] 正在添加 燧石斧 × 37
+[DawnTrainer] 已添加 燧石斧 × 37，已在地图地面生成
+[DawnTrainer.UI] favorite mouseDown clicked=False hot=91
+[DawnTrainer.UI] favorite mouseUp clicked=True hot=0
+[DawnTrainer.UI] pack.add mouseDown clicked=False hot=102
+[DawnTrainer.UI] pack.add mouseUp clicked=True hot=0
+[DawnTrainer] 已加入物资包：运行时快照测试；到物资包标签编辑或执行
+[DawnTrainer.UI] nav.6 mouseDown clicked=False hot=23
+[DawnTrainer.UI] nav.6 mouseUp clicked=True hot=0
+[DawnTrainer.UI] pack.execute mouseDown clicked=False hot=110
+[DawnTrainer.UI] pack.execute mouseUp clicked=True hot=0
+[DawnTrainer] 正在添加 运行时快照测试，共 145 件
+[DawnTrainer] 已添加 运行时快照测试 × 145，已在地图地面生成
+[DawnTrainer.UI] nav.7 mouseDown clicked=False hot=25
+[DawnTrainer.UI] nav.7 mouseUp clicked=True hot=0
+[DawnTrainer.UI] key.capture.0 mouseDown clicked=False hot=29
+[DawnTrainer.UI] key.capture.0 mouseUp clicked=True hot=0
+[DawnTrainer] 该按键被游戏或系统占用，请换一个；Esc 取消
+[DawnTrainer] 快捷键已保存，对应开关仍需手动启用
+[DawnTrainer.UI] prefs.autopause mouseDown clicked=False hot=32
+[DawnTrainer.UI] prefs.autopause mouseUp clicked=True hot=0
+[DawnTrainer.UI] nav.3 mouseDown clicked=False hot=24
+[DawnTrainer.UI] nav.3 mouseUp clicked=True hot=0
+[DawnTrainer.UI] speed.0.25 mouseDown clicked=False hot=48
+[DawnTrainer.UI] speed.0.25 mouseUp clicked=True hot=0
+[DawnTrainer.UI] nav.0 mouseDown clicked=False hot=19
+[DawnTrainer.UI] nav.0 mouseUp clicked=True hot=0
+[DawnTrainer.UI] lock.0 mouseDown clicked=False hot=30
+[DawnTrainer.UI] lock.0 mouseUp clicked=True hot=0
+[DawnTrainer.UI] close mouseDown clicked=False hot=28
+[DawnTrainer.UI] close mouseUp clicked=True hot=0
