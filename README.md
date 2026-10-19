@@ -4,7 +4,7 @@
 
 **当前版本：v1.3.1** · 已验证：本机 Steam **Dawn of Man 1.8.4 / Unity 2022.3.62f2 / Windows**。
 
-[下载安装包](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest) · [详细说明](docs/使用说明.txt) · [更新记录](docs/更新说明.txt) · [验证记录](docs/验证结果.txt)
+[详细说明](docs/使用说明.txt) · [更新记录](docs/更新说明.txt) · [验证记录](docs/验证结果.txt)
 
 ![游戏内基础功能与准确倍率显示](docs/screenshots/06-概览倍率精度修复.jpg)
 
@@ -25,7 +25,7 @@
 
 ## 安装与使用
 
-1. 在 [Releases](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest) 下载完整 ZIP 并解压。
+1. 在仓库页面选择 **Code → Download ZIP** 下载源码并解压，或克隆仓库。先按照下方「从源码构建」运行 `Build.ps1`，生成修改器与安装器。
 2. 退出游戏，运行解压目录里的 `安装.cmd`。默认路径为 `D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan`。
 3. 如果游戏位置不同，在解压目录中运行 `Installer.exe "你的游戏目录"`。
 4. 启动游戏并进入地图，按 **F11** 打开 / 隐藏面板，**Esc** 关闭。
@@ -48,7 +48,7 @@ v1.3.1 修复原生窗口回调导致页签和编辑值被覆盖、线条图标�
 
 测试使用未保存临时地图及独立修改器偏好文件，没有创建地图存档。原游戏正常更新全局 Profile 的提示与镜头等记录。此次验证不涵盖长期稳定性、复杂旧档兼容和完整存读档流程。
 
-完整日志、[审阅记录](docs/Astra界面评价.txt)与 [6 张真实游戏截图](docs/screenshots)在 `docs/`。Release ZIP 另含 24 张共享布局的离线预览。
+完整日志、[审阅记录](docs/Astra界面评价.txt)与 [6 张真实游戏截图](docs/screenshots)在 `docs/`。仓库仅发布源码；离线预览可通过测试代码导出。
 
 ## 从源码构建
 
