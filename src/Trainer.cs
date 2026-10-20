@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
 using DawnOfMan;
 using MadrugaShared;
 using UnityEngine;
@@ -11,7 +13,7 @@ namespace DawnTrainer
     // All game work runs on Unity's main thread. No remote endpoints or injection service.
     public sealed partial class Trainer : MonoBehaviour
     {
-        public const string Version = "1.3.1";
+        public const string Version = "1.4.0";
         private static Trainer instance;
         internal static readonly bool[] Locks = new bool[7];
         private static readonly HashSet<Stat> lockedStats = new HashSet<Stat>();
@@ -30,7 +32,7 @@ namespace DawnTrainer
         private EntityType selectedResource, selectedAnimal;
         private Vector2 resourceScroll, animalScroll;
         private Rect window = new Rect(0, 0, 1180, 800);
-        private float scale = 1, statusUntil;
+        private float scale = 1, statusUntil, toastUntil;
         private string status = "F11 显示 / 隐藏面板";
         private string lastSpawnName = "";
         private int lastSpawnCount;
@@ -42,7 +44,11 @@ namespace DawnTrainer
         private bool diagnostic, isolatedTestSession;
         private float diagnosticStart;
         private int diagnosticPhase;
-        private int inputBlockedUntilFrame;
+        private int inputBlockedUntilFrame, pressOwner;
+        private const int PanelPress = 1, WorldPress = 2;
+        private string selectionSignature = "", armedSignature;
+        private float armedUntil;
+        private readonly SelectionConfirmation hotkeyKillConfirmation = new SelectionConfirmation();
 
         private sealed class SpawnJob
         {
@@ -86,7 +92,27 @@ namespace DawnTrainer
             catch (Exception ex) { instance.Report(ex); }
         }
 
-        public static bool BlockInput() { return instance != null && (instance.visible || Time.frameCount <= instance.inputBlockedUntilFrame); }
+        public static bool BlockInput() { return instance != null && (Time.frameCount <= instance.inputBlockedUntilFrame || (instance.visible && instance.PanelOwnsInput())); }
+
+        // An open panel only takes input meant for it, so targets can be picked in the world around it.
+        private bool PanelOwnsInput()
+        {
+            if (capturingKey >= 0 || GUIUtility.keyboardControl != 0 || pressOwner == PanelPress) return true;
+            return pressOwner == 0 && MouseOverPanel();
+        }
+        private bool MouseOverPanel() { Vector3 mouse = Input.mousePosition; return panelRect.Contains(new Vector2(mouse.x, Screen.height - mouse.y)); }
+
+        // A mouse press belongs to where it started until every button is released, so drags never split between panel and world.
+        private void TrackPointer()
+        {
+            bool down = Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2);
+            bool held = Input.GetMouseButton(0) || Input.GetMouseButton(1) || Input.GetMouseButton(2);
+            bool up = Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.GetMouseButtonUp(2);
+            if (!visible || (!down && !held && !up)) { pressOwner = 0; return; }
+            if (pressOwner == 0) pressOwner = down && MouseOverPanel() ? PanelPress : WorldPress;
+            // Clicking the world ends typing in a panel field, so that click and later keys reach the game.
+            if (pressOwner == WorldPress && down && capturingKey < 0) GUIUtility.keyboardControl = 0;
+        }
         public static bool IsLocked(Stat stat) { return stat != null && lockedStats.Contains(stat); }
 
         internal static bool Ready()
@@ -95,15 +121,21 @@ namespace DawnTrainer
             return gm.getCurrentGameStateId() == "GameStateGame" && (bool)gameReady.GetValue(gm);
         }
 
+        // OnGUI can run before Tick has adopted the EntityManager of a world that just became ready.
+        private bool WorldReady() { return Ready() && manager != null && manager == TransientSingleton<EntityManager>.CurrentInstance; }
+
         private void Tick()
         {
             SavePreferences(false);
             bool captured = CaptureShortcut();
-            if (!captured && Input.GetKeyDown(KeyCode.F11)) { visible = !visible; inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
-            if (!captured && visible && Input.GetKeyDown(KeyCode.Escape)) { visible = false; inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
+            if (!captured && Input.GetKeyDown(KeyCode.F11)) { visible = !visible; CancelKillConfirmation(); inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
+            if (!captured && visible && Input.GetKeyDown(KeyCode.Escape)) { visible = false; CancelKillConfirmation(); inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
+            TrackPointer();
             if (diagnostic) DiagnosticTick();
             if (!Ready())
             {
+                ClearMultiplierWorld();
+                CancelKillConfirmation();
                 overlayPause.Clear(); autoPauseRequested = false;
                 lastSpawnUntil = 0;
                 lockedStats.Clear();
@@ -116,6 +148,8 @@ namespace DawnTrainer
             if (isolatedTestSession) typeof(SavegameManager).GetField("mAutosaveTimer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(Singleton<SavegameManager>.Instance, 0f);
             if (manager != current)
             {
+                ClearMultiplierWorld();
+                CancelKillConfirmation();
                 overlayPause.Clear(); autoPauseRequested = false;
                 float initialSpeed = TransientSingleton<TimeManager>.CurrentInstance.getTimeScale();
                 lastRunningSpeed = initialSpeed > 0 ? initialSpeed : 1;
@@ -130,6 +164,7 @@ namespace DawnTrainer
                 selectedAnimal = animals.Find(t => t.getId() == preferences.Animal) ?? (animals.Count > 0 ? animals[0] : null);
                 Debug.Log("[DawnTrainer] Catalog: " + resources.Count + " resources; " + animals.Count + " animals");
             }
+            ObserveKillConfirmation();
             SyncOverlayPause();
             RefreshLocks();
             while (actions.Count > 0) { try { actions.Dequeue()(); } catch (Exception ex) { Report(ex); } }
@@ -141,10 +176,12 @@ namespace DawnTrainer
         {
             GameCamera camera = TransientSingleton<GameCamera>.CurrentInstance;
             TimeManager time = TransientSingleton<TimeManager>.CurrentInstance;
-            bool allowed = TrainerPolicy.AllowsHotkeys(Ready(), BlockInput(),
+            // Action hotkeys stay off while the panel is open, even when its surroundings take clicks.
+            bool allowed = TrainerPolicy.AllowsHotkeys(Ready(), visible || BlockInput(),
                 camera != null && camera.isInteractive() && !camera.isTransitioning(),
                 time == null || time.isRealPaused(), Singleton<GuiManager>.Instance.anyModalPanels(),
                 GUIUtility.keyboardControl != 0);
+            if (!allowed || !killHotkey) hotkeyKillConfirmation.Clear();
             if (!allowed) return;
             bool modified = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)
                 || Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt)
@@ -158,7 +195,7 @@ namespace DawnTrainer
             switch (command)
             {
                 case TrainerCommand.CompleteSelection: CompleteSelected(); break;
-                case TrainerCommand.KillSelection: KillSelected(); break;
+                case TrainerCommand.KillSelection: if (HotkeyKillConfirmed()) KillSelected(); break;
                 case TrainerCommand.GiveResource: QueueResource(); break;
             }
         }
@@ -195,6 +232,7 @@ namespace DawnTrainer
         {
             uiStatusError = false;
             status = message; statusUntil = Time.realtimeSinceStartup + 8;
+            if (!visible) toastUntil = Time.realtimeSinceStartup + 4;
             Debug.Log("[DawnTrainer] " + message);
         }
         private void Report(Exception ex)
@@ -203,19 +241,15 @@ namespace DawnTrainer
             uiStatusError = true;
             string message = ex.GetType().Name + ": " + ex.Message;
             status = "操作未完成：" + ex.Message; statusUntil = Time.realtimeSinceStartup + 10;
+            if (!visible) toastUntil = Time.realtimeSinceStartup + 4;
             if (message != lastError || Time.realtimeSinceStartup - lastErrorTime > 10)
             { Debug.LogError("[DawnTrainer] " + ex); lastError = message; lastErrorTime = Time.realtimeSinceStartup; }
         }
 
         internal int CompleteSelected()
         {
-            Selection selection = TransientSingleton<Selection>.CurrentInstance;
             List<Buildable> targets = new List<Buildable>();
-            for (int i = 0; i < selection.getCount(); i++)
-            {
-                Buildable buildable = selection.getEntity(i) as Buildable;
-                if (buildable != null && buildable.getTeam() == Team.Player && !buildable.isBuilt() && !buildable.isDestroyed()) targets.Add(buildable);
-            }
+            foreach (PhysicalEntity entity in SelectionSnapshot()) if (CanComplete(entity)) targets.Add((Buildable)entity);
             int completed = 0;
             KnowledgeManager knowledge = TransientSingleton<KnowledgeManager>.CurrentInstance;
             foreach (Buildable target in targets)
@@ -224,22 +258,56 @@ namespace DawnTrainer
                     delegate { return target.increaseBuildProgress(1f - target.getBuildProgress()); },
                     delegate { knowledge.onBuildableBuilt(target); })) completed++;
             }
-            Notify(completed > 0 ? "已完成 " + completed + " 个选中建筑 / 运输工具" : "请先关闭面板，选中未完工的建筑");
+            Notify(completed > 0 ? "已完成 " + completed + " 个选中建筑 / 运输工具" : "请先选中未完工的建筑");
             return completed;
         }
 
         internal int KillSelected()
         {
-            Selection selection = TransientSingleton<Selection>.CurrentInstance;
             List<Being> targets = new List<Being>();
-            for (int i = 0; i < selection.getCount(); i++)
-            {
-                Being being = selection.getEntity(i) as Being;
-                if (being != null && being.isAlive() && !being.isDestroyed()) targets.Add(being);
-            }
+            foreach (PhysicalEntity entity in SelectionSnapshot()) if (CanKill(entity)) targets.Add((Being)entity);
             foreach (Being target in targets) { target.getHealth().setValue(0f); target.triggerDeath(DeathType.Killed); }
             Notify(targets.Count > 0 ? "已杀死 " + targets.Count + " 个选中单位" : "请先选中活着的人物或动物");
             return targets.Count;
+        }
+
+        // Player villagers in the selection; killing them needs a second confirmation.
+        private string SelectedVillagers()
+        {
+            int count = 0; string first = null;
+            foreach (PhysicalEntity entity in SelectionSnapshot())
+            {
+                Human human = entity as Human;
+                if (human != null && human.getTeam() == Team.Player && CanKill(human)) { count++; if (first == null) first = human.getName(); }
+            }
+            return count == 0 ? null : count == 1 ? first : first + " 等 " + count + " 人";
+        }
+
+        private string SelectionSignature()
+        {
+            StringBuilder text = new StringBuilder();
+            foreach (PhysicalEntity entity in SelectionSnapshot()) text.Append(RuntimeHelpers.GetHashCode(entity)).Append(',');
+            return text.ToString();
+        }
+
+        private void CancelKillConfirmation()
+        { hotkeyKillConfirmation.Clear(); if (ui != null && ui.ArmedAction == "kill") ui.ArmedAction = null; }
+
+        private void ObserveKillConfirmation()
+        {
+            string current = SelectionSignature(); float now = Time.realtimeSinceStartup;
+            hotkeyKillConfirmation.Observe(current, now);
+            if (ui != null && ui.ArmedAction == "kill" && (now >= armedUntil || current != armedSignature)) ui.ArmedAction = null;
+        }
+
+        // The kill hotkey needs a second press on the same selection within 4 seconds when villagers are included.
+        private bool HotkeyKillConfirmed()
+        {
+            string villagers = SelectedVillagers(), signature = SelectionSignature();
+            if (villagers == null) { hotkeyKillConfirmation.Clear(); return true; }
+            if (hotkeyKillConfirmation.Confirm(signature, Time.realtimeSinceStartup)) return true;
+            Notify("选中目标含村民 " + villagers + "，4 秒内再按 " + preferences.Keys[1] + " 确认杀死");
+            return false;
         }
 
         internal void AddKnowledge(int amount)
@@ -250,9 +318,9 @@ namespace DawnTrainer
 
         private Vector3 SpawnPosition()
         {
-            Selection selection = TransientSingleton<Selection>.CurrentInstance;
-            if (spawnLocation == 0 && selection.getCount() > 0)
-                return selection.getEntity(0).getPosition();
+            List<PhysicalEntity> selected = SelectionSnapshot();
+            if (spawnLocation == 0 && selected.Count > 0)
+                return selected[0].getPosition();
             Camera camera = TransientSingleton<GameCamera>.CurrentInstance.getCameraComponent();
             RaycastHit hit;
             if (Physics.Raycast(camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f, 0)), out hit, 2000f, TerrainConstants.TerrainLayerMask))
@@ -333,12 +401,17 @@ namespace DawnTrainer
         {
             lastSpawnUntil = 0;
             Array.Clear(Locks, 0, Locks.Length); lockedStats.Clear(); domestic = buildHotkey = killHotkey = giveHotkey = false;
-            jobs.Clear(); SetSpeed(1);
-            Notify("所有持续开关已关闭，速度恢复 1 倍");
+            jobs.Clear(); CancelKillConfirmation(); ResetMultipliers(); lastRunningSpeed = 1;
+            TimeManager time = TransientSingleton<TimeManager>.CurrentInstance;
+            float? speed = overlayPause.ResetSpeed(time.isRealPaused(), visible && preferences.AutoPause);
+            if (speed.HasValue) time.setTimeScale(speed.Value);
+            Notify(overlayPause.ResetPending ? "所有持续开关已关闭，关闭游戏暂停菜单后恢复 1 倍速（面板自动暂停仍生效）"
+                : overlayPause.Owns ? "所有持续开关已关闭，关闭面板后恢复 1 倍速" : "所有持续开关已关闭，速度恢复 1 倍");
         }
 
         private void OnDestroy()
         {
+            ClearMultiplierWorld();
             SavePreferences(true);
             lockedStats.Clear(); instance = null;
             foreach (Texture2D texture in textures) Destroy(texture);

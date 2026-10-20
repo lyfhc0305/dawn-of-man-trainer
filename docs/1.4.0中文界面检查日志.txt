@@ -1,0 +1,219 @@
+﻿PASS sidebar displays the supplied game version instead of a fixed version
+PASS page 0 controls stay in window
+PASS page 0 interactive controls do not overlap
+PASS page 0 navigation stays clear of connection card
+PASS page 0 text stays within its actual panel height
+PASS page 1 controls stay in window
+PASS page 1 interactive controls do not overlap
+PASS page 1 navigation stays clear of connection card
+PASS page 1 text stays within its actual panel height
+PASS page 2 controls stay in window
+PASS page 2 interactive controls do not overlap
+PASS page 2 navigation stays clear of connection card
+PASS page 2 text stays within its actual panel height
+PASS page 3 controls stay in window
+PASS page 3 interactive controls do not overlap
+PASS page 3 navigation stays clear of connection card
+PASS page 3 text stays within its actual panel height
+PASS page 4 controls stay in window
+PASS page 4 interactive controls do not overlap
+PASS page 4 navigation stays clear of connection card
+PASS page 4 text stays within its actual panel height
+PASS page 5 controls stay in window
+PASS page 5 interactive controls do not overlap
+PASS page 5 navigation stays clear of connection card
+PASS page 5 text stays within its actual panel height
+PASS page 6 controls stay in window
+PASS page 6 interactive controls do not overlap
+PASS page 6 navigation stays clear of connection card
+PASS page 6 text stays within its actual panel height
+PASS page 7 controls stay in window
+PASS page 7 interactive controls do not overlap
+PASS page 7 navigation stays clear of connection card
+PASS page 7 text stays within its actual panel height
+PASS page 8 controls stay in window
+PASS page 8 interactive controls do not overlap
+PASS page 8 navigation stays clear of connection card
+PASS page 8 text stays within its actual panel height
+PASS maintenance tab controls stay in window without overlap
+PASS oversized resource count disables add
+PASS nonnumeric resource count disables add
+PASS busy generation disables duplicate add
+PASS empty search offers clear filters
+PASS live ID filter finds the six flint resources
+PASS oversized animal count disables generation
+PASS empty selection disables target action buttons
+PASS title/loading page exposes no game actions
+PASS overview preserves exact quarter-speed precision
+PASS overview summary identifies automatic pause instead of a running speed
+PASS resource primary button dispatches its intended action
+PASS animal primary button dispatches its intended action
+PASS danger button dispatches only kill action
+PASS killing selected villagers names them and waits for a second click
+PASS second click confirms the villager kill
+PASS changing page cancels a pending confirmation
+PASS custom switch changes its actual model value
+PASS quantity chip changes add quantity
+PASS page 1 invalid count text stays clear of controls
+PASS page 1 invalid count text has a separate row area
+PASS page 1 generation progress text stays clear of controls
+PASS page 1 generation progress text has a separate row area
+PASS page 2 invalid count text stays clear of controls
+PASS page 2 invalid count text has a separate row area
+PASS page 2 generation progress text stays clear of controls
+PASS page 2 generation progress text has a separate row area
+PASS speed slider dispatches selected speed
+PASS an untouched slider never rewrites a speed between its steps
+PASS logarithmic slider gives 0.25×–1× and 1×–4× the same width
+PASS search ignores leading and trailing spaces
+PASS filtered-out selection is explicitly identified
+PASS primary button identifies the actual item and count
+PASS clicking current navigation preserves search and category
+PASS clicking current navigation preserves valid scroll position
+PASS clearing search resets its scroll position
+PASS each catalog keeps its own search when navigating
+PASS four complete catalog rows are visible without cropped names
+PASS animal generation exposes both location choices
+PASS missing selection explains the actual spawn location
+PASS progress remains attached to original job after selection changes
+PASS success feedback names the completed item and amount
+PASS attribute row has a full-width click target
+PASS overview summarizes targets and opens the page that holds every target action
+PASS target switches explicitly enable shortcuts
+PASS focus states distinguish search and quantity fields
+PASS catalog names the pack that receives the item
+PASS pack and primary buttons are clearly separated
+PASS rescue button dispatches a one-time selection action
+PASS empty rescue and capture selections disable action buttons
+PASS maintenance view dispatches live building supply calculation
+PASS maintenance controls remain inside window
+PASS favorite button updates the actual saved preference model
+PASS favorites filter displays only saved favorites
+PASS selected resource and quantity can be added to a pack
+PASS valid pack primary button dispatches batch creation
+PASS one invalid item disables the entire pack execution
+PASS deleting a pack waits for a second click
+PASS second click deletes the pack
+PASS pack editor searches the catalog and adds items in place
+PASS invalid pack names the problem and the button asks for a fix
+PASS housing and existing visitors disable duplicate invitations
+PASS quarter-speed preset emits exact fractional speed
+PASS shortcut button starts capture for the intended action
+PASS automatic pause preference is directly editable
+PASS interface size preference is directly editable
+PASS active generation exposes an explicit stop action
+PASS adding an existing pack item repairs quantity '-10' without a duplicate row
+PASS repaired pack quantity '-10' allows execution
+PASS adding an existing pack item repairs quantity '0' without a duplicate row
+PASS repaired pack quantity '0' allows execution
+PASS adding an existing pack item repairs quantity 'abc' without a duplicate row
+PASS repaired pack quantity 'abc' allows execution
+PASS adding an existing pack item repairs quantity '' without a duplicate row
+PASS repaired pack quantity '' allows execution
+PASS adding an existing pack item repairs quantity '-2147483648' without a duplicate row
+PASS repaired pack quantity '-2147483648' allows execution
+PASS adding a repaired pack item continues from its repaired amount
+PASS existing quantity '1000' rejects addition without overflow or losing its value
+PASS existing quantity '1001' rejects addition without overflow or losing its value
+PASS existing quantity '2147483647' rejects addition without overflow or losing its value
+PASS adding exactly to the 1000 item boundary succeeds
+PASS new catalog item normalizes quantity ' 10 '
+PASS new catalog item normalizes quantity '0010'
+PASS new catalog item normalizes quantity '+10'
+PASS new catalog quantity '-1' cannot insert an invalid pack row
+PASS new catalog quantity '0' cannot insert an invalid pack row
+PASS new catalog quantity 'abc' cannot insert an invalid pack row
+PASS new catalog quantity '' cannot insert an invalid pack row
+PASS new catalog quantity '1001' cannot insert an invalid pack row
+PASS four integer multipliers start at 1x in version 1.4.0
+PASS efficiency page occupies the intended sidebar position
+PASS each multiplier displays its current integer value
+PASS efficiency page explains each scope and retains stock when capacity decreases
+PASS only the efficiency page uses the compact 640px panel height
+PASS all four sliders and multiplier buttons retain at least 32px click height
+PASS integer sliders share their visible track width and do not overlap neighboring controls
+PASS compact explanatory notes and status remain inside the panel
+PASS compact sidebar navigation ends above the connection card
+PASS compact cards omit the redundant preset heading
+PASS storage multiplier cannot go below one
+PASS storage multiplier cannot exceed its integer maximum
+PASS storage plus increments by exactly one and emits an integer
+PASS storage minus decrements by exactly one and emits an integer
+PASS storage preset 1 dispatches its own integer setting
+PASS storage preset 2 dispatches its own integer setting
+PASS storage preset 5 dispatches its own integer setting
+PASS storage preset 10 dispatches its own integer setting
+PASS storage unchanged preset does not dispatch a duplicate setting
+PASS storage slider rounds or clamps input 4.49 to one integer setting
+PASS storage slider rounds or clamps input 4.5 to one integer setting
+PASS storage slider rounds or clamps input -10 to one integer setting
+PASS storage slider rounds or clamps input 20 to one integer setting
+PASS storage slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS storage slider ignores unchanged or nonfinite input 7
+PASS storage slider ignores unchanged or nonfinite input 7.49
+PASS storage slider ignores unchanged or nonfinite input NaN
+PASS storage slider ignores unchanged or nonfinite input Infinity
+PASS storage slider ignores unchanged or nonfinite input -Infinity
+PASS build multiplier cannot go below one
+PASS build multiplier cannot exceed its integer maximum
+PASS build plus increments by exactly one and emits an integer
+PASS build minus decrements by exactly one and emits an integer
+PASS build preset 1 dispatches its own integer setting
+PASS build preset 2 dispatches its own integer setting
+PASS build preset 5 dispatches its own integer setting
+PASS build preset 10 dispatches its own integer setting
+PASS build preset 20 dispatches its own integer setting
+PASS build unchanged preset does not dispatch a duplicate setting
+PASS build slider rounds or clamps input 4.49 to one integer setting
+PASS build slider rounds or clamps input 4.5 to one integer setting
+PASS build slider rounds or clamps input -10 to one integer setting
+PASS build slider rounds or clamps input 30 to one integer setting
+PASS build slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS build slider ignores unchanged or nonfinite input 7
+PASS build slider ignores unchanged or nonfinite input 7.49
+PASS build slider ignores unchanged or nonfinite input NaN
+PASS build slider ignores unchanged or nonfinite input Infinity
+PASS build slider ignores unchanged or nonfinite input -Infinity
+PASS carry multiplier cannot go below one
+PASS carry multiplier cannot exceed its integer maximum
+PASS carry plus increments by exactly one and emits an integer
+PASS carry minus decrements by exactly one and emits an integer
+PASS carry preset 1 dispatches its own integer setting
+PASS carry preset 2 dispatches its own integer setting
+PASS carry preset 5 dispatches its own integer setting
+PASS carry preset 10 dispatches its own integer setting
+PASS carry unchanged preset does not dispatch a duplicate setting
+PASS carry slider rounds or clamps input 4.49 to one integer setting
+PASS carry slider rounds or clamps input 4.5 to one integer setting
+PASS carry slider rounds or clamps input -10 to one integer setting
+PASS carry slider rounds or clamps input 20 to one integer setting
+PASS carry slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS carry slider ignores unchanged or nonfinite input 7
+PASS carry slider ignores unchanged or nonfinite input 7.49
+PASS carry slider ignores unchanged or nonfinite input NaN
+PASS carry slider ignores unchanged or nonfinite input Infinity
+PASS carry slider ignores unchanged or nonfinite input -Infinity
+PASS transport multiplier cannot go below one
+PASS transport multiplier cannot exceed its integer maximum
+PASS transport plus increments by exactly one and emits an integer
+PASS transport minus decrements by exactly one and emits an integer
+PASS transport preset 1 dispatches its own integer setting
+PASS transport preset 2 dispatches its own integer setting
+PASS transport preset 5 dispatches its own integer setting
+PASS transport preset 10 dispatches its own integer setting
+PASS transport unchanged preset does not dispatch a duplicate setting
+PASS transport slider rounds or clamps input 4.49 to one integer setting
+PASS transport slider rounds or clamps input 4.5 to one integer setting
+PASS transport slider rounds or clamps input -10 to one integer setting
+PASS transport slider rounds or clamps input 20 to one integer setting
+PASS transport slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS transport slider ignores unchanged or nonfinite input 7
+PASS transport slider ignores unchanged or nonfinite input 7.49
+PASS transport slider ignores unchanged or nonfinite input NaN
+PASS transport slider ignores unchanged or nonfinite input Infinity
+PASS transport slider ignores unchanged or nonfinite input -Infinity
+PASS storage and every multiplier control are disabled without a map
+PASS build and every multiplier control are disabled without a map
+PASS carry and every multiplier control are disabled without a map
+PASS transport and every multiplier control are disabled without a map
+UI RESULT passed=218 failed=0; shared layout rendered offline, game not launched

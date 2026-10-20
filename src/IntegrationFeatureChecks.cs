@@ -38,6 +38,22 @@ namespace DawnTrainer
                 visible=false;SyncOverlayPause();check(blocked&&time.isRealPaused(),"runtime speed actions do not release native real pause");time.unpause();
             },check);
             preferences.AutoPause=false;visible=false;overlayPause.Clear();autoPauseRequested=false;time.setTimeScale(0);
+            TestGroup("reset and confirmation regression",delegate
+            {
+                time.setTimeScale(8);time.realPause();Reset();
+                check(time.isRealPaused()&&overlayPause.ResetPending&&lastRunningSpeed==1,"runtime reset queues 1x while preserving the native menu pause");
+                time.unpause();SyncOverlayPause();check(time.getTimeScale()==1&&!overlayPause.ResetPending,"runtime reset restores actual 1x when the native menu closes");
+                preferences.AutoPause=true;visible=true;time.setTimeScale(8);SyncOverlayPause();time.realPause();Reset();
+                check(time.isRealPaused()&&overlayPause.ResetPending,"runtime reset with automatic pause never releases a native menu pause");
+                time.unpause();SyncOverlayPause();check(time.getTimeScale()==0&&overlayPause.Owns&&overlayPause.Desired==1,"runtime reset resumes into the panel pause at desired 1x");
+                visible=false;SyncOverlayPause();check(time.getTimeScale()==1,"runtime closing the panel after reset restores 1x");
+                preferences.AutoPause=false;TestSelect(featureTestHuman);CancelKillConfirmation();
+                check(!HotkeyKillConfirmed(),"runtime villager kill starts with an unconfirmed first press");
+                TestSelect(null);ObserveKillConfirmation();TestSelect(featureTestHuman);ObserveKillConfirmation();
+                check(!HotkeyKillConfirmed(),"runtime selecting away and back invalidates the earlier kill confirmation");
+                OnUiAction("page","1");check(!HotkeyKillConfirmed(),"runtime page navigation invalidates the earlier kill confirmation");
+                CancelKillConfirmation();time.setTimeScale(0);
+            },check);
             TestGroup("selected rescue",delegate
             {
                 TestSelect(featureTestHuman);Stat[] values=BeingStats(featureTestHuman);foreach(Stat stat in values)stat.setValue(.2f);
@@ -62,6 +78,11 @@ namespace DawnTrainer
                 TestSelect(featureTestBlueprint);int before=featureTestBlueprint.getPendingConstructionMaterials().calculateTotalCount();List<SpawnJob> plan;
                 List<SupplyLine> missing=MissingMaterials(SelectionSnapshot(),out plan);
                 check(plan.Count>0&&missing.Count>0&&featureTestBlueprint.getPendingConstructionMaterials().calculateTotalCount()==before,"runtime missing-material preview clones without delivering or deleting materials");
+                Buildable recycling=manager.createBuildable(typeof(Structure),type,GameUtil.floorPosition(pos+new Vector3(33,0,-17)),Quaternion.identity,0,0,type.getCosts().clone());recycling.onSpawn();
+                List<Resource> recycled=null;recycling.increaseRecycleProgress(.1f,ref recycled);TestSelect(recycling);
+                check(recycling.isBeingRecycled()&&!CanComplete(recycling)&&CompleteSelected()==0&&!recycling.isBuilt(),"runtime quick build ignores a blueprint already being recycled");
+                if(ui==null)ui=new UiModel{Preferences=preferences};UpdateUiModel();
+                check(ui.BuildTargets==0,"runtime target summary excludes a blueprint already being recycled");
             },check);
             TestGroup("native capture conversion",delegate
             {
@@ -72,6 +93,8 @@ namespace DawnTrainer
                 string reason;check(CanTame(animal,out reason),"runtime native capture eligibility accepts unlocked young "+wildType.getId());
                 AnimalType domesticType=wildType.getDomesticatedVariant();int before=manager.getEntityCount(domesticType,Team.Player);TestSelect(animal);TameSelected();
                 check(manager.getEntityCount(domesticType,Team.Player)==before+1&&manager.isPendingDestruction(animal),"runtime taming creates domestic variant and retires wild original");
+                check(!Valid(animal)&&!SelectionSnapshot().Contains(animal)&&!CanKill(animal)&&KillSelected()==0,"runtime actions ignore the pending-destruction original after taming");
+                UpdateUiModel();check(ui.KillTargets==0,"runtime target summary excludes the pending-destruction original after taming");
                 Animal adult=manager.createEntityOnFloor<Animal>(wildType,new EntityParameters(pos+new Vector3(43,0,14),Quaternion.identity,Age.Adult,Gender.Male));adult.onSpawn();
                 check(!CanTame(adult,out reason),"runtime native capture eligibility rejects adult wild animal");
             },check);
@@ -122,6 +145,7 @@ namespace DawnTrainer
                 if(Time.frameCount-featureTestFrame<3)return false;
                 check(manager.getEntityCount(resources.Find(t=>t.getId()=="log"))-featureTestBefore["log"]==12,"runtime cancel preserves generated batch and stops remaining 88 items");
                 TestSelect(featureTestHuman);preferences.AutoPause=false;overlayPause.Clear();autoPauseRequested=false;TransientSingleton<TimeManager>.CurrentInstance.setTimeScale(0);
+                BeginMultiplierIntegration(check);
                 SavePreferences(true);featureTestStage=4;return true;
             }
             return false;

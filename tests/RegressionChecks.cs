@@ -130,7 +130,7 @@ internal static class RegressionChecks
                 MethodDefinition method = installed.MainModule.GetType(parts[0]).Methods.Single(m => m.Name == parts[1]);
                 Check(Calls(method, "DawnTrainer.Trainer", "BlockInput"), "installed input gate intact: " + gate);
             }
-            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "1.3.1", "shipping version is 1.3.1");
+            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "1.4.0", "shipping version is 1.4.0");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.EntityManager","morphBeing")&&Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.KnowledgeManager","onNewResidentAnimal"),"taming uses native species conversion and resident notification");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="CanTame"),"DawnOfMan.ContextAction","doable"),"taming preserves native capture eligibility checks");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","increaseCondition")&&Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","resetRepairMaterials"),"building repair updates model and resets native repair materials");
@@ -138,6 +138,29 @@ internal static class RegressionChecks
             Check(!Calls(trainer.Methods.Single(m=>m.Name=="SetSpeed"),"DawnOfMan.TimeManager","unpause")&&!Calls(trainer.Methods.Single(m=>m.Name=="SyncOverlayPause"),"DawnOfMan.TimeManager","unpause"),"slow-speed restoration never releases native menu pauses");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TogglePause"),"DawnTrainer.FeaturePolicy","NextPauseSpeed")&&Calls(trainer.Methods.Single(m=>m.Name=="SetSpeed"),"DawnTrainer.OverlayPauseState","RequestSpeed"),"shipping speed controls use the tested manual and overlay pause paths");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="DrawInterfaceWindow"),"DawnTrainer.Trainer","ApplyUiModel")&&!Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.Trainer","ApplyUiModel"),"native window callback commits navigation and text edits before next model refresh");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="UpdateUiModel"),"DawnTrainer.Trainer","WorldReady")&&Calls(trainer.Methods.Single(m=>m.Name=="UpdateFeatureModel"),"DawnTrainer.Trainer","WorldReady"),"UI model reads the world only after Tick adopted its EntityManager");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.TrainerView","RenderToast"),"hidden-panel hotkey results are shown as a toast");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="BlockInput"),"DawnTrainer.Trainer","PanelOwnsInput")&&Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.Trainer","TrackPointer"),"open panel takes input only over itself, while typing or during its own drags");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="HandleHotkeys"),"DawnTrainer.Trainer","HotkeyKillConfirmed"),"kill hotkey asks for a second press when villagers are selected");
+            Check(!Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"UnityEngine.Matrix4x4","Scale")&&Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.FeaturePolicy","PanelScale"),"panel text is drawn at screen resolution instead of scaled by GUI.matrix");
+            Check(!Calls(trainer.Methods.Single(m=>m.Name=="Reset"),"DawnTrainer.Trainer","SetSpeed")&&Calls(trainer.Methods.Single(m=>m.Name=="Reset"),"DawnTrainer.OverlayPauseState","ResetSpeed")&&Calls(trainer.Methods.Single(m=>m.Name=="SyncOverlayPause"),"DawnTrainer.OverlayPauseState","ResumeReset"),"runtime reset uses deferred menu-safe speed restoration");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.Trainer","ObserveKillConfirmation")&&Calls(trainer.Methods.Single(m=>m.Name=="OnUiAction"),"DawnTrainer.Trainer","CancelKillConfirmation"),"kill confirmation observes selection changes every frame and cancels on navigation");
+            foreach(string action in new[]{"CompleteSelected","KillSelected","SelectedVillagers","UpdateUiModel"})
+                Check(Calls(trainer.Methods.Single(m=>m.Name==action),"DawnTrainer.Trainer","SelectionSnapshot"),"runtime action uses filtered selection snapshot: "+action);
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="CanComplete"),"DawnOfMan.Buildable","isBeingRecycled")&&Calls(trainer.Methods.Single(m=>m.Name=="Valid"),"DawnOfMan.EntityManager","isPendingDestruction"),"construction and selection reject recycling and pending destruction");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.FeaturePolicy","ClampPanelPosition"),"runtime window dragging uses bounded positions");
+            TypeDefinition runtimeProduction = module.GetType("DawnTrainer.ProductionPolicy");
+            TypeDefinition testedProduction = tests.MainModule.GetType("DawnTrainer.ProductionPolicy");
+            foreach(string name in new[]{"ValidMultiplier","ScaledCapacity","ScaleBuildWork"})
+                Check(Shape(runtimeProduction.Methods.Single(m=>m.Name==name))==Shape(testedProduction.Methods.Single(m=>m.Name==name)),"tested multiplier policy IL matches shipping DLL: "+name);
+            foreach(string name in new[]{"getCapacity","isFull","getSpaceLeft","canStoreEntity"})
+                Check(Calls(installed.MainModule.GetType("DawnOfMan.Slot").Methods.Single(m=>m.Name==name),"DawnTrainer.Trainer","PrepareSlot"),"installed slot capacity gate: "+name);
+            Check(Calls(installed.MainModule.GetType("DawnOfMan.Slot").Methods.Single(m=>m.Name=="getSpaceLeft"),"DawnTrainer.Trainer","NonnegativeSpace"),"installed overfull slots never report negative free space");
+            Check(Calls(installed.MainModule.GetType("DawnOfMan.BeingStateBuilding").Methods.Single(m=>m.Name=="increaseBuildingOperation"),"DawnTrainer.Trainer","ScaleBuildWork"),"installed construction scales native work before native completion");
+            foreach(string type in new[]{"DawnOfMan.AiRuleGoGetResourceToStore","DawnOfMan.AiRuleTaskGetResource"})
+                Check(Calls(installed.MainModule.GetType(type).Methods.Single(m=>m.Name=="run"),"DawnTrainer.Trainer","ResourceCarrySlots"),"installed ordinary resource planning scales carry capacity: "+type);
+            Check(!Calls(installed.MainModule.GetType("DawnOfMan.PhysicalEntity").Methods.Single(m=>m.Name=="countEmptySlots"),"DawnTrainer.Trainer","CarryPlanSlots"),"general empty-slot queries keep their native meaning for bodies and equipment");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="Reset"),"DawnTrainer.Trainer","ResetMultipliers")&&Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.Trainer","ClearMultiplierWorld"),"reset and world transitions clear all production multipliers");
         }
     }
     private static int Main(string[] args)

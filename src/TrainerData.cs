@@ -21,6 +21,7 @@ namespace DawnTrainer
     {
         internal string[] Keys = { "Insert", "Delete", "F10" };
         internal bool AutoPause;
+        internal int UiScale = 100;
         internal string Quantity = "10", AnimalQuantity = "1", Resource = "", Animal = "";
         internal float WindowX, WindowY;
         internal readonly HashSet<string> Favorites = new HashSet<string>(StringComparer.Ordinal);
@@ -45,7 +46,7 @@ namespace DawnTrainer
         {
             StringBuilder b = new StringBuilder("Version=1\n");
             for (int i = 0; i < 3; i++) b.Append("Key" + i + "=" + Keys[i] + "\n");
-            b.Append("AutoPause=" + AutoPause + "\nQuantity=" + Quantity + "\nAnimalQuantity=" + AnimalQuantity + "\n");
+            b.Append("AutoPause=" + AutoPause + "\nUiScale=" + UiScale + "\nQuantity=" + Quantity + "\nAnimalQuantity=" + AnimalQuantity + "\n");
             b.Append("Resource=" + Encode(Resource) + "\nAnimal=" + Encode(Animal) + "\n");
             b.Append("WindowX=" + WindowX.ToString("R", CultureInfo.InvariantCulture) + "\nWindowY=" + WindowY.ToString("R", CultureInfo.InvariantCulture) + "\n");
             List<string> favorites = new List<string>(Favorites); favorites.Sort(StringComparer.Ordinal);
@@ -71,6 +72,7 @@ namespace DawnTrainer
                     if (key == "Version" && value != "1") throw new InvalidDataException("偏好版本不兼容");
                     if (key == "Key0" || key == "Key1" || key == "Key2") { if (value.Length < 32) p.Keys[key[3] - '0'] = value; }
                     else if (key == "AutoPause" && Boolean.TryParse(value, out flag)) p.AutoPause = flag;
+                    else if (key == "UiScale" && Int32.TryParse(value, out count) && Array.IndexOf(FeaturePolicy.UiScales, count) >= 0) p.UiScale = count;
                     else if (key == "Quantity" && Int32.TryParse(value, out count) && count >= 1 && count <= 1000) p.Quantity = value;
                     else if (key == "AnimalQuantity" && Int32.TryParse(value, out count) && count >= 1 && count <= 50) p.AnimalQuantity = value;
                     else if (key == "Resource") p.Resource = Decode(value);
@@ -96,6 +98,19 @@ namespace DawnTrainer
             return p;
         }
         internal static TrainerPreferences Load(string path) { return File.Exists(path) ? Deserialize(File.ReadAllText(path, Encoding.UTF8)) : Defaults(); }
+        // An unreadable file is backed up before defaults may replace it; if that fails, nothing is written this session.
+        internal static TrainerPreferences LoadSafely(string path, out bool writable, out string problem)
+        {
+            writable = true; problem = null;
+            try { return Load(path); }
+            catch (Exception ex)
+            {
+                string backup = path + ".unreadable-" + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+                try { File.Copy(path, backup, false); problem = ex.Message + "；原文件已备份为 " + backup; }
+                catch (Exception copy) { writable = false; problem = ex.Message + "；无法备份，本次不保存偏好：" + copy.Message; }
+                return Defaults();
+            }
+        }
         internal void Save(string path)
         {
             string folder = Path.GetDirectoryName(path); Directory.CreateDirectory(folder);
@@ -106,14 +121,30 @@ namespace DawnTrainer
     internal static class FeaturePolicy
     {
         internal const int MaximumTotal = 5000, MaximumJobs = 128;
+        internal static readonly int[] UiScales = { 80, 90, 100, 110, 125, 150 };
+        // 100% keeps the panel near 75% of screen height (never below 1:1); the result always fits and snaps to 0.05 steps.
+        internal static float PanelScale(float screenWidth, float screenHeight, float panelWidth, float panelHeight, int percent)
+        {
+            float fit = Math.Min((screenWidth - 48) / panelWidth, (screenHeight - 48) / panelHeight);
+            float scale = Math.Min(fit, Math.Max(1, screenHeight * .75f / panelHeight) * percent / 100f);
+            if (Single.IsNaN(scale) || Single.IsInfinity(scale)) return 1;
+            return Math.Max(.25f, (float)Math.Floor(scale * 20 + .0001f) / 20);
+        }
         internal static float NextPauseSpeed(float current, ref float lastRunning)
         {
             if(current>0){lastRunning=current;return 0;}
             return Single.IsNaN(lastRunning)||Single.IsInfinity(lastRunning)?1:Math.Max(.25f,Math.Min(15,lastRunning));
         }
-        internal static int ValidateSupply(IList<SupplyLine> lines, ISet<string> available)
+        internal static float ClampPanelPosition(float position, float screenExtent, float panelExtent)
         {
-            if (lines.Count == 0 || lines.Count > MaximumJobs) throw new InvalidOperationException("清单需要 1–128 项");
+            float available = Math.Max(0, screenExtent - panelExtent), margin = Math.Min(12, available / 2);
+            if (Single.IsNaN(position) || Single.IsInfinity(position)) return available / 2;
+            return Math.Max(margin, Math.Min(available - margin, position));
+        }
+        // Packs are limited to MaximumJobs lines; building plans hold one job per building and material, bounded by MaximumTotal.
+        internal static int ValidateSupply(IList<SupplyLine> lines, ISet<string> available, int maximumLines = MaximumJobs)
+        {
+            if (lines.Count == 0 || lines.Count > maximumLines) throw new InvalidOperationException("清单需要 1–" + maximumLines + " 项");
             long total = 0;
             foreach (SupplyLine line in lines)
             {
@@ -136,6 +167,7 @@ namespace DawnTrainer
     {
         internal bool Owns;
         internal float Desired = 1;
+        internal bool ResetPending { get; private set; }
         internal float? Open(float current, bool realPaused)
         { if (Owns || realPaused || current <= 0) return null; Owns = true; Desired = current; return 0; }
         internal float? Close(float current, bool realPaused)
@@ -145,6 +177,49 @@ namespace DawnTrainer
             if(Owns||holdForOverlay){Owns=true;Desired=speed;return 0;}
             return speed;
         }
-        internal void Clear() { Owns = false; Desired = 1; }
+        // A reset waits for the native menu to release its pause, then uses the current overlay preference.
+        internal float? ResetSpeed(bool realPaused, bool holdForOverlay)
+        {
+            Clear(); ResetPending = realPaused;
+            return realPaused ? (float?)null : RequestSpeed(1, holdForOverlay);
+        }
+        internal float? ResumeReset(bool realPaused, bool holdForOverlay)
+        { return ResetPending && !realPaused ? ResetSpeed(false, holdForOverlay) : null; }
+        internal void Clear() { Owns = false; Desired = 1; ResetPending = false; }
+        // A speed set by the game itself while the panel holds its pause ends that hold.
+        internal void Observe(float current) { if (Owns && current > 0) Owns = false; }
+    }
+
+    internal static class ProductionPolicy
+    {
+        internal static bool ValidMultiplier(int value, int maximum) { return value >= 1 && value <= maximum; }
+        internal static int ScaledCapacity(int capacity, int multiplier)
+        {
+            if (capacity <= 0) return capacity;
+            if (!ValidMultiplier(multiplier, 10)) multiplier = 1;
+            return (int)Math.Min(Int32.MaxValue, (long)capacity * multiplier);
+        }
+        internal static float ScaleBuildWork(float work, int multiplier)
+        {
+            if (Single.IsNaN(work) || Single.IsInfinity(work) || work <= 0) return 0;
+            if (!ValidMultiplier(multiplier, 20)) multiplier = 1;
+            double scaled = (double)work * multiplier;
+            return (float)Math.Min(Single.MaxValue, scaled);
+        }
+    }
+
+    internal sealed class SelectionConfirmation
+    {
+        private string signature;
+        private float until;
+        internal void Clear() { signature = null; until = 0; }
+        internal void Observe(string current, float now)
+        { if (signature != current || now >= until) Clear(); }
+        internal bool Confirm(string current, float now)
+        {
+            Observe(current, now);
+            if (signature != null) { Clear(); return true; }
+            signature = current; until = now + 4; return false;
+        }
     }
 }

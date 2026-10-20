@@ -34,6 +34,7 @@ namespace DawnTrainer
                 EntityTypeManager types = TransientSingleton<EntityTypeManager>.CurrentInstance;
                 List<EntityType> resources = types.getTypeEntities<ResourceType>();
                 List<EntityType> animals = types.getTypeEntities<AnimalType>();
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "--trainer-export-catalog") >= 0) ExportCatalog(resources, animals);
                 Check(resources != null && resources.Count > 70, "resource catalog available: " + resources.Count);
                 Check(animals != null && animals.Count >= 27, "animal catalog available: " + animals.Count);
                 Human human = manager.getPlayerHumans()[0];
@@ -140,6 +141,25 @@ namespace DawnTrainer
             Directory.CreateDirectory(ArtifactDirectory());
             File.WriteAllText(Path.Combine(ArtifactDirectory(), "result.txt"), "passed="+passed+" failed="+failed);
             Finished = true;
+        }
+        private static void ExportCatalog(List<EntityType> resources, List<EntityType> animals)
+        {
+            string folder=ArtifactDirectory(),icons=Path.Combine(folder,"icons");Directory.CreateDirectory(icons);
+            System.Text.StringBuilder catalog=new System.Text.StringBuilder();
+            foreach(List<EntityType> group in new[]{resources,animals}) foreach(EntityType type in group)
+            {
+                Texture2D icon=type.getIcon();string path=Path.Combine(icons,type.getId()+".png");
+                if(icon!=null)
+                {
+                    RenderTexture previous=RenderTexture.active,render=RenderTexture.GetTemporary(icon.width,icon.height,0);
+                    Texture2D copy=null;
+                    try { Graphics.Blit(icon,render);RenderTexture.active=render;copy=new Texture2D(icon.width,icon.height,TextureFormat.RGBA32,false);copy.ReadPixels(new Rect(0,0,icon.width,icon.height),0,0);copy.Apply();File.WriteAllBytes(path,ImageConversion.EncodeToPNG(copy)); }
+                    finally { RenderTexture.active=previous;RenderTexture.ReleaseTemporary(render);if(copy!=null)UnityEngine.Object.Destroy(copy); }
+                }
+                int mask=0;if(type.hasAnyFlag(EntityFlags.Food|EntityFlags.Drink))mask|=1;if(type.hasAnyFlag(EntityFlags.Material))mask|=2;if(type.hasAnyFlag(EntityFlags.Tool))mask|=4;if(type.hasAnyFlag(EntityFlags.Clothing))mask|=8;
+                catalog.Append(group==resources?"resource":"animal").Append('\t').Append(type.getId()).Append('\t').Append(type.getName()).Append('\t').Append(mask).Append('\t').Append(icon==null?"":path).Append('\n');
+            }
+            File.WriteAllText(Path.Combine(folder,"catalog.tsv"),catalog.ToString(),System.Text.Encoding.UTF8);
         }
     }
 }

@@ -8,6 +8,7 @@ obj/
 work/
 *.user
 *.suo
+._*
 
 # Local preferences, saves, and game files
 preferences.ini

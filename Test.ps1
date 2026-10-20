@@ -1,5 +1,5 @@
-﻿param(
-    [string]$GamePath = 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan',
+param(
+    [string]$GamePath = $(if (Test-Path 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan') { 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan' } else { Join-Path (Split-Path $PSScriptRoot -Parent) 'DawnOfMan' }),
     [string]$WorkPath = (Join-Path $env:TEMP 'DawnOfManTrainer-offline-tests')
 )
 $ErrorActionPreference = 'Stop'

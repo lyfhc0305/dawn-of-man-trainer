@@ -1,0 +1,7 @@
+﻿[DawnTrainer] Loaded 1.4.0; F11 toggles panel
+Loaded language 'cn', 1756 strings
+[DawnTrainer] Catalog: 87 resources; 31 animals
+[DawnTrainer] 封闭仓储已设为 5 倍；现有物品保留，降低容量后需先卸货
+[DawnTrainer] 封闭仓储已设为 10 倍；现有物品保留，降低容量后需先卸货
+[DawnTrainer] 建造速度已设为 14 倍；保留原生材料需求和完工奖励
+[DawnTrainer] 所有持续开关已关闭，速度恢复 1 倍

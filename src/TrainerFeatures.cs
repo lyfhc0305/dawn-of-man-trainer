@@ -14,7 +14,7 @@ namespace DawnTrainer
         private string preferencePath, lastPreferenceText = "";
         private float nextPreferenceSave, lastRunningSpeed = 1;
         private readonly OverlayPauseState overlayPause = new OverlayPauseState();
-        private bool autoPauseRequested;
+        private bool autoPauseRequested, preferencesWritable = true;
         private int capturingKey = -1, batchTotal, batchDone;
         private string batchLabel = "";
 
@@ -22,17 +22,18 @@ namespace DawnTrainer
         {
             preferencePath = Path.Combine(Path.GetDirectoryName(Application.dataPath), @"DawnTrainer\preferences.ini");
             if (isolatedTestSession) preferencePath = Path.Combine(IntegrationChecks.ArtifactDirectory(), "test-preferences.ini");
-            try { preferences = TrainerPreferences.Load(preferencePath); }
-            catch (Exception ex) { preferences = TrainerPreferences.Defaults(); Debug.LogWarning("[DawnTrainer] Preferences: " + ex.Message); }
+            string problem; preferences = TrainerPreferences.LoadSafely(preferencePath, out preferencesWritable, out problem);
+            if (problem != null) Debug.LogWarning("[DawnTrainer] Preferences: " + problem);
             for (int i = 0; i < 3; i++) { KeyCode key; if (!Enum.TryParse<KeyCode>(preferences.Keys[i], out key) || !Enum.IsDefined(typeof(KeyCode), key)) preferences.Keys[i] = new string[] { "Insert", "Delete", "F10" }[i]; }
             if (preferences.Keys[0] == preferences.Keys[1] || preferences.Keys[0] == preferences.Keys[2] || preferences.Keys[1] == preferences.Keys[2]) preferences.Keys = new string[] { "Insert", "Delete", "F10" };
             quantity = preferences.Quantity; animalQuantity = preferences.AnimalQuantity;
             window.x = preferences.WindowX; window.y = preferences.WindowY;
+            windowPositioned = window.x != 0 || window.y != 0;
             lastPreferenceText = preferences.Serialize();
         }
         private void SavePreferences(bool force)
         {
-            if (preferences == null || (!force && Time.realtimeSinceStartup < nextPreferenceSave)) return;
+            if (preferences == null || !preferencesWritable || (!force && Time.realtimeSinceStartup < nextPreferenceSave)) return;
             nextPreferenceSave = Time.realtimeSinceStartup + 1;
             preferences.WindowX = window.x; preferences.WindowY = window.y;
             int amount;
@@ -84,6 +85,9 @@ namespace DawnTrainer
         private void SyncOverlayPause()
         {
             TimeManager time = TransientSingleton<TimeManager>.CurrentInstance;
+            float? resetSpeed = overlayPause.ResumeReset(time.isRealPaused(), visible && preferences.AutoPause);
+            if (resetSpeed.HasValue) time.setTimeScale(resetSpeed.Value);
+            overlayPause.Observe(time.getTimeScale());
             bool requested = visible && preferences.AutoPause;
             float? desired = null;
             if (requested && !autoPauseRequested) desired = overlayPause.Open(time.getTimeScale(), time.isRealPaused());
@@ -111,7 +115,14 @@ namespace DawnTrainer
             for (int i = 0; i < selection.getCount(); i++) { PhysicalEntity e = selection.getEntity(i); if (Valid(e)) result.Add(e); }
             return result;
         }
-        private bool Valid(PhysicalEntity entity) { return entity != null && !entity.isDestroyed() && !manager.isPendingDestruction(entity); }
+        private bool Valid(PhysicalEntity entity) { return manager != null && entity != null && !entity.isDestroyed() && !manager.isPendingDestruction(entity); }
+        private bool CanComplete(PhysicalEntity entity)
+        {
+            Buildable buildable = entity as Buildable;
+            return buildable != null && Valid(buildable) && buildable.getTeam() == Team.Player && !buildable.isBuilt() && !buildable.isBeingRecycled();
+        }
+        private bool CanKill(PhysicalEntity entity)
+        { Being being = entity as Being; return being != null && Valid(being) && being.isAlive(); }
         private static Stat[] BeingStats(Being being)
         {
             Human human = being as Human;
@@ -206,7 +217,7 @@ namespace DawnTrainer
             List<SupplyLine> lines = new List<SupplyLine>(); HashSet<string> available = new HashSet<string>();
             foreach (EntityType r in resources) available.Add(r.getId());
             foreach (SpawnJob job in plan) lines.Add(new SupplyLine { Id = job.Type.getId(), Quantity = job.Total.ToString() });
-            int total = FeaturePolicy.ValidateSupply(lines, available);
+            int total = FeaturePolicy.ValidateSupply(lines, available, FeaturePolicy.MaximumTotal);
             foreach (SpawnJob job in plan) jobs.Enqueue(job);
             batchTotal = total; batchDone = 0; batchLabel = label; lastSpawnUntil = 0;
             Notify("正在添加 " + label + "，共 " + total + " 件");
@@ -229,11 +240,12 @@ namespace DawnTrainer
 
         private void UpdateFeatureModel()
         {
+            UpdateMultiplierModel();
             ui.Preferences = preferences; ui.CapturingKey = capturingKey; ui.AutoPauseActive = overlayPause.Owns;
             ui.RescueTargets = ui.RepairTargets = ui.ResourceRepairTargets = ui.TameTargets = ui.HousingFree = ui.MigrantCount = ui.TraderCount = 0;
             ui.Materials.Clear(); ui.TameReason = "仅幼年、科技已解锁且没有任务的可驯化动物";
             for (int i = 0; i < 7; i++) ui.TargetStats[i] = -1;
-            if (!Ready()) return;
+            if (!WorldReady()) return;
             if (overlayPause.Owns) ui.Speed = overlayPause.Desired;
             if (ui.Busy) { ui.Done = batchDone; ui.Total = batchTotal; ui.TaskName = batchLabel; }
             ui.HousingFree = Math.Max(0, manager.getHumanCapacity() - manager.getAliveResidentCount() - manager.getPregnantHumanCount());
@@ -254,9 +266,16 @@ namespace DawnTrainer
             if (action == "pack.notice") { Notify(value); return true; }
             if (action == "focus.clear") { GUI.FocusControl(null); return true; }
             if (action == "key.capture") { capturingKey = Int32.Parse(value); GUI.FocusControl(null); return true; }
-            if (action == "prefs.default") { preferences.Keys = new string[] { "Insert", "Delete", "F10" }; preferences.AutoPause = false; capturingKey = -1; SavePreferences(true); return true; }
+            if (action == "prefs.default") { preferences.Keys = new string[] { "Insert", "Delete", "F10" }; preferences.AutoPause = false; preferences.UiScale = 100; capturingKey = -1; SavePreferences(true); return true; }
             if (!Ready()) return false;
-            if (action == "rescue.health") Enqueue(delegate { RescueSelected(false); });
+            if (action.StartsWith("multiplier.", StringComparison.Ordinal))
+            {
+                string kind = action.Substring("multiplier.".Length);
+                int multiplier;
+                if (!Int32.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out multiplier)) throw new InvalidOperationException("倍率必须是大于等于 1 的整数");
+                Enqueue(delegate { SetMultiplier(kind, multiplier); });
+            }
+            else if (action == "rescue.health") Enqueue(delegate { RescueSelected(false); });
             else if (action == "rescue.all") Enqueue(delegate { RescueSelected(true); });
             else if (action == "repair.building") Enqueue(delegate { RepairSelected(false); });
             else if (action == "repair.resource") Enqueue(delegate { RepairSelected(true); });

@@ -31,8 +31,10 @@ internal sealed class PreviewCanvas : UiCanvas, IDisposable
     internal string ClickId;
     internal string FocusId;
     internal float? NextSlider;
+    internal readonly Dictionary<string,float> NextSliders = new Dictionary<string,float>();
+    internal readonly List<string> SliderCalls = new List<string>();
     private bool consumed;
-    private readonly Bitmap bitmap = new Bitmap((int)TrainerView.Width, (int)TrainerView.Height);
+    private readonly Bitmap bitmap;
     private readonly Graphics graphics;
     private readonly Dictionary<string,Font> fonts = new Dictionary<string,Font>();
     private readonly Dictionary<string,System.Drawing.Image> images = new Dictionary<string,System.Drawing.Image>();
@@ -40,8 +42,9 @@ internal sealed class PreviewCanvas : UiCanvas, IDisposable
     private readonly Stack<RectangleF> clips = new Stack<RectangleF>();
     private readonly Stack<PointF> offsets = new Stack<PointF>();
     private PointF offset;
-    internal PreviewCanvas()
+    internal PreviewCanvas(int height=800)
     {
+        bitmap = new Bitmap((int)TrainerView.Width,height);
         graphics = Graphics.FromImage(bitmap); graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
@@ -108,7 +111,8 @@ internal sealed class PreviewCanvas : UiCanvas, IDisposable
         if(result.Length>maximumLength)result=result.Substring(0,maximumLength);
         Text(r.Inset(4),result,centered?16:14,TrainerView.TextMain,false,centered?1:0);return result;
     }
-    internal override float Slider(UiRect r,string id,float value,float min,float max){Hit(r,"slider."+id,true);return NextSlider??value;}
+    internal override float Slider(UiRect r,string id,float value,float min,float max)
+    {SliderCalls.Add(id);Hit(r,"slider."+id,true);float next;return NextSliders.TryGetValue(id,out next)?next:NextSlider??value;}
     internal override float BeginScroll(UiRect viewport,float position,float contentHeight)
     {
         position=Math.Max(0,Math.Min(position,Math.Max(0,contentHeight-viewport.H)));
@@ -133,8 +137,8 @@ internal sealed class PreviewCanvas : UiCanvas, IDisposable
         using(Bitmap screen=new Bitmap(width,height))using(Graphics g=Graphics.FromImage(screen))
         {
             g.Clear(Color.FromArgb(12,14,18));g.InterpolationMode=InterpolationMode.HighQualityBicubic;
-            float scale=Math.Min((width-48)/TrainerView.Width,(height-48)/TrainerView.Height);
-            float w=TrainerView.Width*scale,h=TrainerView.Height*scale;
+            float scale=FeaturePolicy.PanelScale(width,height,TrainerView.Width,TrainerView.Height,100);
+            float w=TrainerView.Width*scale,h=bitmap.Height*scale;
             g.DrawImage(bitmap,(width-w)/2,(height-h)/2,w,h);screen.Save(path,System.Drawing.Imaging.ImageFormat.Png);
         }
     }
@@ -147,7 +151,7 @@ internal static class UiPreview
     private static void Check(bool condition,string message){if(condition){passed++;Console.WriteLine("PASS "+message);}else{failed++;Console.WriteLine("FAIL "+message);}}
     internal static UiModel Model(string catalog)
     {
-        UiModel m=new UiModel{Ready=true,Knowledge=128,SelectionCount=3,BuildTargets=2,KillTargets=1,SelectedResource="raw_meat",SelectedAnimal="deer",StatusError=false,Weather=0,SelectionName="鹿",TaskName="生肉",Status="准备就绪，修改仅作用于当前地图。"};
+        UiModel m=new UiModel{GameVersion="1.8.3",Ready=true,Knowledge=128,SelectionCount=3,BuildTargets=2,KillTargets=1,SelectedResource="raw_meat",SelectedAnimal="deer",StatusError=false,Weather=0,SelectionName="鹿",TaskName="生肉",Status="准备就绪，修改仅作用于当前地图。"};
         m.RescueTargets=2;m.RepairTargets=1;m.ResourceRepairTargets=1;m.TameTargets=1;m.HousingFree=18;m.MigrantCount=m.TraderCount=0;
         m.CapturingKey=-1;m.AutoPauseActive=false;
         for(int i=0;i<7;i++)m.TargetStats[i]=.48f+i*.07f;
@@ -174,16 +178,19 @@ internal static class UiPreview
     }
     private static void GeometryChecks(UiModel model)
     {
-        for(int page=0;page<8;page++)
-        using(PreviewCanvas c=new PreviewCanvas())
+        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Texts.Any(t=>t.Text=="Dawn of Man  1.8.3")&&!c.Texts.Any(t=>t.Text.Contains("1.8.4")),"sidebar displays the supplied game version instead of a fixed version");}
+        for(int page=0;page<9;page++)
+        using(PreviewCanvas c=new PreviewCanvas(TrainerView.PanelHeight(page)))
         {
             model.Page=page;TrainerView.Render(c,model);
-            Check(c.Hits.All(h=>h.Rect.X>=0&&h.Rect.Y>=0&&h.Rect.X+h.Rect.W<=TrainerView.Width+.1f&&h.Rect.Y+h.Rect.H<=TrainerView.Height+.1f),"page "+page+" controls stay in window");
-            bool overlap=false;
-            for(int a=0;a<c.Hits.Count;a++)for(int b=a+1;b<c.Hits.Count;b++)
-            {UiRect x=c.Hits[a].Rect,y=c.Hits[b].Rect;float w=Math.Min(x.X+x.W,y.X+y.W)-Math.Max(x.X,y.X),h=Math.Min(x.Y+x.H,y.Y+y.H)-Math.Max(x.Y,y.Y);if(w>1&&h>1)overlap=true;}
-            Check(!overlap,"page "+page+" interactive controls do not overlap");
+            Check(c.Hits.All(h=>h.Rect.X>=0&&h.Rect.Y>=0&&h.Rect.X+h.Rect.W<=TrainerView.Width+.1f&&h.Rect.Y+h.Rect.H<=TrainerView.PanelHeight(page)+.1f),"page "+page+" controls stay in window");
+            Check(!Overlaps(c.Hits),"page "+page+" interactive controls do not overlap");
+            Check(c.Hits.Where(h=>h.Id.StartsWith("nav.")).All(h=>h.Rect.Y+h.Rect.H<=(page==8?544:TrainerView.Height-178)),"page "+page+" navigation stays clear of connection card");
+            Check(c.Texts.All(t=>t.Rect.Y>=0&&t.Rect.Y+t.Rect.H<=TrainerView.PanelHeight(page)+.1f),"page "+page+" text stays within its actual panel height");
         }
+        model.Page=5;model.TargetTab=1;
+        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(!Overlaps(c.Hits)&&c.Hits.All(h=>h.Rect.X>=0&&h.Rect.Y>=0&&h.Rect.X+h.Rect.W<=TrainerView.Width+.1f&&h.Rect.Y+h.Rect.H<=TrainerView.Height+.1f),"maintenance tab controls stay in window without overlap");}
+        model.TargetTab=0;
         model.Page=1;model.Quantity="1001";
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Any(h=>h.Id=="spawn"&&!h.Enabled),"oversized resource count disables add");}
         model.Quantity="abc";
@@ -196,8 +203,10 @@ internal static class UiPreview
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Count(h=>h.Id.StartsWith("item."))==6,"live ID filter finds the six flint resources");}
         model.Search="";model.Page=2;model.AnimalQuantity="51";
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Any(h=>h.Id=="spawn"&&!h.Enabled),"oversized animal count disables generation");}
-        model.AnimalQuantity="1";model.Page=0;model.SelectionCount=model.KillTargets=model.BuildTargets=0;
-        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Where(h=>h.Id=="kill"||h.Id=="complete").All(h=>!h.Enabled),"empty selection disables target action buttons");}
+        model.AnimalQuantity="1";model.Page=5;model.SelectionCount=model.KillTargets=model.BuildTargets=0;
+        bool disabled=true;
+        for(int tab=0;tab<2;tab++){model.TargetTab=tab;using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);disabled&=c.Hits.Any(h=>h.Id==(tab==0?"kill":"complete")&&!h.Enabled);}}
+        Check(disabled,"empty selection disables target action buttons");model.TargetTab=0;
         model.Ready=false;
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(!c.Hits.Any(h=>h.Id=="kill"||h.Id=="complete"||h.Id=="spawn"),"title/loading page exposes no game actions");}
         model.Ready=true;model.KillTargets=1;model.BuildTargets=2;model.SelectionCount=3;
@@ -210,9 +219,14 @@ internal static class UiPreview
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="spawn";TrainerView.Render(c,model);Check(actions.SequenceEqual(new[]{"spawn.resource:"}),"resource primary button dispatches its intended action");}
         actions.Clear();model.Page=2;
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="spawn";TrainerView.Render(c,model);Check(actions.SequenceEqual(new[]{"spawn.animal:"}),"animal primary button dispatches its intended action");}
-        actions.Clear();model.Page=0;
+        actions.Clear();model.Page=5;model.TargetTab=0;
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="kill";TrainerView.Render(c,model);Check(actions.SequenceEqual(new[]{"kill:"}),"danger button dispatches only kill action");}
+        actions.Clear();model.KillVillagers="Tarnak";
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="kill";TrainerView.Render(c,model);Check(actions.SequenceEqual(new[]{"confirm.arm:kill"})&&model.ArmedAction=="kill"&&c.Texts.Any(t=>t.Text=="含村民 Tarnak"),"killing selected villagers names them and waits for a second click");}
         actions.Clear();
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="kill";TrainerView.Render(c,model);Check(actions.SequenceEqual(new[]{"kill:"})&&model.ArmedAction==null,"second click confirms the villager kill");}
+        model.ArmedAction="kill";model.Navigate(1);model.Navigate(5);Check(model.ArmedAction==null,"changing page cancels a pending confirmation");model.KillVillagers=null;
+        actions.Clear();model.Page=0;
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="lock.0";bool before=model.Locks[0];TrainerView.Render(c,model);Check(model.Locks[0]!=before,"custom switch changes its actual model value");}
         actions.Clear();model.Page=1;
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="quantity.100";TrainerView.Render(c,model);Check(model.Quantity=="100","quantity chip changes add quantity");}
@@ -232,9 +246,13 @@ internal static class UiPreview
         model.Page=3;model.Busy=false;
         using(PreviewCanvas c=new PreviewCanvas())
         {
-            actions.Clear();model.Action=(a,v)=>actions.Add(a+":"+v);c.NextSlider=8;TrainerView.Render(c,model);
+            actions.Clear();model.Action=(a,v)=>actions.Add(a+":"+v);c.NextSlider=TrainerView.SpeedTrack(8);TrainerView.Render(c,model);
             Check(actions.Contains("speed:8"),"speed slider dispatches selected speed");
         }
+        model.Speed=1.5f;actions.Clear();
+        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(!actions.Any(a=>a.StartsWith("speed:")),"an untouched slider never rewrites a speed between its steps");}
+        model.Speed=1;
+        Check(Math.Abs(TrainerView.SpeedTrack(1)-(TrainerView.SpeedTrack(4)-TrainerView.SpeedTrack(1)))<.001f,"logarithmic slider gives 0.25×–1× and 1×–4× the same width");
         model.Action=null;
         model.Page=1;model.Quantity="10";model.Search="  flint  ";
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Count(h=>h.Id.StartsWith("item."))==6,"search ignores leading and trailing spaces");Check(c.Texts.Any(t=>t.Text=="已选项不在当前筛选中"),"filtered-out selection is explicitly identified");Check(c.Texts.Any(t=>t.Text.StartsWith("添加 ")&&t.Text.Contains("× 10")),"primary button identifies the actual item and count");}
@@ -255,9 +273,24 @@ internal static class UiPreview
         model.Busy=false;model.ShowSuccess=true;model.CompletedName="生肉";model.CompletedCount=10;
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Texts.Any(t=>t.Text=="已添加 生肉 × 10"),"success feedback names the completed item and amount");}
         model.SelectedResource="raw_meat";model.ShowSuccess=false;model.Page=0;
-        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.First(h=>h.Id=="lock.0").Rect.W==244,"attribute row has a full-width click target");Check(c.Texts.Any(t=>t.Text=="启用 Ins 快捷键")&&c.Texts.Any(t=>t.Text=="启用 Del 快捷键"),"target switches explicitly enable shortcuts");}
+        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.First(h=>h.Id=="lock.0").Rect.W==244,"attribute row has a full-width click target");}
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="targets.open";TrainerView.Render(c,model);Check(model.Page==5&&!c.Hits.Any(h=>h.Id=="kill"||h.Id=="complete"),"overview summarizes targets and opens the page that holds every target action");}
+        bool shortcuts=true;
+        for(int tab=0;tab<2;tab++){model.TargetTab=tab;using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);shortcuts&=c.Texts.Any(t=>t.Text==(tab==0?"启用 Del 快捷键":"启用 Ins 快捷键"));}}
+        Check(shortcuts,"target switches explicitly enable shortcuts");model.TargetTab=0;
         model.Page=1;
         using(PreviewCanvas c=new PreviewCanvas()){c.FocusId="search";TrainerView.Render(c,model);Check(c.Focused("search")&&!c.Focused("quantity"),"focus states distinguish search and quantity fields");}
+        using(PreviewCanvas c=new PreviewCanvas())
+        {
+            TrainerView.Render(c,model);UiHit add=c.Hits.First(h=>h.Id=="pack.add"),spawn=c.Hits.First(h=>h.Id=="spawn");
+            Check(c.Texts.Any(t=>t.Text=="加入物资包「建村材料」"),"catalog names the pack that receives the item");
+            Check(spawn.Rect.Y-(add.Rect.Y+add.Rect.H)>=8,"pack and primary buttons are clearly separated");
+        }
+    }
+    private static bool Overlaps(List<UiHit> hits)
+    {
+        for(int a=0;a<hits.Count;a++)for(int b=a+1;b<hits.Count;b++)if(Intersects(hits[a].Rect,hits[b].Rect))return true;
+        return false;
     }
     private static bool Intersects(UiRect a,UiRect b)
     {return Math.Min(a.X+a.W,b.X+b.W)-Math.Max(a.X,b.X)>1&&Math.Min(a.Y+a.H,b.Y+b.H)-Math.Max(a.Y,b.Y)>1;}
@@ -266,7 +299,7 @@ internal static class UiPreview
         try
         {
             string catalog=args.Length==0?"--fixtures":args[0];
-            UiModel model=Model(catalog);GeometryChecks(model);FeatureUiChecks(Model(catalog));
+            UiModel model=Model(catalog);GeometryChecks(model);FeatureUiChecks(Model(catalog));PackQuantityChecks(Model(catalog));MultiplierUiChecks(Model(catalog));
             if(args.Length<2)return Result();
             string output=Path.GetFullPath(args[1]);Directory.CreateDirectory(output);
             string[] names={"01-基础功能","02-添加资源","03-产生动物","04-世界控制","05-使用说明"};
@@ -297,6 +330,13 @@ internal static class UiPreview
                 if(i==8){m.Page=3;m.Speed=.25f;m.AutoPauseActive=true;}
                 using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,m);c.Save(Path.Combine(output,featureNames[i]+".png"));}
             }
+            UiModel multipliers=Model(catalog);multipliers.Page=8;multipliers.StorageMultiplier=5;multipliers.BuildMultiplier=10;multipliers.CarryMultiplier=2;multipliers.TransportMultiplier=5;
+            using(PreviewCanvas c=new PreviewCanvas(TrainerView.PanelHeight(8)))
+            {
+                TrainerView.Render(c,multipliers);c.Save(Path.Combine(output,"25-效率倍率.png"));
+                c.SaveAtResolution(Path.Combine(output,"26-效率倍率-1280x720.png"),1280,720);
+                c.SaveAtResolution(Path.Combine(output,"27-效率倍率-1366x768.png"),1366,768);
+            }
         }
         catch(Exception ex){failed++;Console.WriteLine("FAIL "+ex);}
         return Result();
@@ -321,6 +361,14 @@ internal static class UiPreview
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.execute";TrainerView.Render(c,model);Check(actions.Contains("pack.execute:"),"valid pack primary button dispatches batch creation");}
         model.Preferences.Packs[0].Lines[0].Quantity="0";
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Any(h=>h.Id=="pack.execute"&&!h.Enabled),"one invalid item disables the entire pack execution");}
+        int packs=model.Preferences.Packs.Count;actions.Clear();
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.delete";TrainerView.Render(c,model);Check(model.Preferences.Packs.Count==packs&&actions.Contains("confirm.arm:pack.delete"),"deleting a pack waits for a second click");}
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.delete";TrainerView.Render(c,model);Check(model.Preferences.Packs.Count==packs-1,"second click deletes the pack");}
+        model.PackSearch="flint";int lines=model.Preferences.Packs[0].Lines.Count;
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.pick.flint";TrainerView.Render(c,model);Check(c.Hits.Count(h=>h.Id.StartsWith("pack.pick."))==3&&model.Preferences.Packs[0].Lines.Count==lines+1&&model.Preferences.Packs[0].Lines.Any(l=>l.Id=="flint"&&l.Quantity=="10"),"pack editor searches the catalog and adds items in place");}
+        model.PackSearch="";model.Preferences.Packs[0].Lines[0].Quantity="0";
+        using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Texts.Any(t=>t.Text=="每项数量需要为 1–1000")&&c.Texts.Any(t=>t.Text=="请先修正清单"),"invalid pack names the problem and the button asks for a fix");}
+        model.Preferences.Packs[0].Lines[0].Quantity="30";
         model.Page=3;model.HousingFree=0;model.TraderCount=1;
         using(PreviewCanvas c=new PreviewCanvas()){TrainerView.Render(c,model);Check(c.Hits.Any(h=>h.Id=="invite.migrant"&&!h.Enabled)&&c.Hits.Any(h=>h.Id=="invite.trader"&&!h.Enabled),"housing and existing visitors disable duplicate invitations");}
         actions.Clear();
@@ -328,7 +376,132 @@ internal static class UiPreview
         model.Page=7;actions.Clear();
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="key.capture.0";TrainerView.Render(c,model);Check(actions.Contains("key.capture:0"),"shortcut button starts capture for the intended action");}
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="prefs.autopause";bool old=model.Preferences.AutoPause;TrainerView.Render(c,model);Check(model.Preferences.AutoPause!=old,"automatic pause preference is directly editable");}
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="ui.scale.125";TrainerView.Render(c,model);Check(model.Preferences.UiScale==125,"interface size preference is directly editable");}
         model.Busy=true;actions.Clear();
         using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="spawn.cancel";TrainerView.Render(c,model);Check(actions.Contains("spawn.cancel:"),"active generation exposes an explicit stop action");}
+    }
+    private static void PackQuantityChecks(UiModel model)
+    {
+        model.Preferences.Packs.Clear();SupplyPack pack=new SupplyPack();model.Preferences.Packs.Add(pack);
+        SupplyLine line=new SupplyLine{Id="raw_meat"};pack.Lines.Add(line);
+        model.Page=6;model.PackSearch="raw_meat";
+        string[] invalidExisting={"-10","0","abc","",Int32.MinValue.ToString()};
+        foreach(string quantity in invalidExisting)
+        {
+            line.Quantity=quantity;
+            using(PreviewCanvas c=new PreviewCanvas())
+            {
+                c.ClickId="pack.pick.raw_meat";TrainerView.Render(c,model);
+                Check(line.Quantity=="10"&&pack.Lines.Count==1,"adding an existing pack item repairs quantity '"+quantity+"' without a duplicate row");
+                Check(c.Hits.Any(h=>h.Id=="pack.execute"&&h.Enabled),"repaired pack quantity '"+quantity+"' allows execution");
+            }
+        }
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.pick.raw_meat";TrainerView.Render(c,model);Check(line.Quantity=="20","adding a repaired pack item continues from its repaired amount");}
+
+        // The catalog also adds to existing rows; huge saved values must be
+        // rejected before integer addition, without the pack input truncating them.
+        model.Page=1;model.SelectedResource="raw_meat";model.Quantity="10";
+        List<string> notices=new List<string>();model.Action=(a,v)=>{if(a=="pack.notice")notices.Add(v);};
+        string[] overLimit={"1000","1001",Int32.MaxValue.ToString()};
+        foreach(string quantity in overLimit)
+        {
+            line.Quantity=quantity;notices.Clear();
+            using(PreviewCanvas c=new PreviewCanvas())
+            {
+                c.ClickId="pack.add";TrainerView.Render(c,model);
+                Check(line.Quantity==quantity&&pack.Lines.Count==1&&notices.SequenceEqual(new[]{"该物资包中的单项数量最多 1000"}),"existing quantity '"+quantity+"' rejects addition without overflow or losing its value");
+            }
+        }
+        line.Quantity="990";notices.Clear();
+        using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.add";TrainerView.Render(c,model);Check(line.Quantity=="1000"&&notices.Count==1&&!notices[0].Contains("最多"),"adding exactly to the 1000 item boundary succeeds");}
+
+        string[] formatted={" 10 ","0010","+10"};
+        foreach(string quantity in formatted)
+        {
+            pack.Lines.Clear();model.Quantity=quantity;
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId="pack.add";TrainerView.Render(c,model);Check(pack.Lines.Count==1&&pack.Lines[0].Quantity=="10","new catalog item normalizes quantity '"+quantity+"'");}
+        }
+        string[] invalidNew={"-1","0","abc","","1001"};
+        foreach(string quantity in invalidNew)
+        {
+            pack.Lines.Clear();model.Quantity=quantity;notices.Clear();
+            using(PreviewCanvas c=new PreviewCanvas())
+            {
+                c.ClickId="pack.add";TrainerView.Render(c,model);
+                Check(pack.Lines.Count==0&&notices.Count==0&&c.Hits.Any(h=>h.Id=="pack.add"&&!h.Enabled),"new catalog quantity '"+quantity+"' cannot insert an invalid pack row");
+            }
+        }
+    }
+    private static void MultiplierUiChecks(UiModel model)
+    {
+        Check(model.Version=="1.4.0"&&model.StorageMultiplier==1&&model.BuildMultiplier==1&&model.CarryMultiplier==1&&model.TransportMultiplier==1,"four integer multipliers start at 1x in version 1.4.0");
+        model.Page=8;
+        string[] keys={"storage","build","carry","transport"};int[] maximums={10,20,10,10};
+        Action<int>[] set={n=>model.StorageMultiplier=n,n=>model.BuildMultiplier=n,n=>model.CarryMultiplier=n,n=>model.TransportMultiplier=n};
+        Func<int>[] get={()=>model.StorageMultiplier,()=>model.BuildMultiplier,()=>model.CarryMultiplier,()=>model.TransportMultiplier};
+        List<string> actions=new List<string>();model.Action=(a,v)=>actions.Add(a+":"+v);
+        using(PreviewCanvas c=new PreviewCanvas(TrainerView.PanelHeight(8)))
+        {
+            TrainerView.Render(c,model);
+            Check(c.Hits.Where(h=>h.Id.StartsWith("nav.")).Select(h=>h.Id).SequenceEqual(new[]{"nav.0","nav.5","nav.1","nav.2","nav.6","nav.3","nav.8","nav.7","nav.4"}),"efficiency page occupies the intended sidebar position");
+            Check(c.Texts.Count(t=>t.Text=="当前 1×")==4,"each multiplier displays its current integer value");
+            Check(c.Texts.Any(t=>t.Text.Contains("不含露天堆场"))&&c.Texts.Any(t=>t.Text.Contains("材料与搬运照常"))&&c.Texts.Any(t=>t.Text.Contains("儿童、重物保持"))&&c.Texts.Any(t=>t.Text.Contains("仅拖板与拖车"))&&c.Texts.Any(t=>t.Text.Contains("保留现货")),"efficiency page explains each scope and retains stock when capacity decreases");
+            Check(TrainerView.PanelHeight(8)==640&&Enumerable.Range(0,8).All(p=>TrainerView.PanelHeight(p)==800),"only the efficiency page uses the compact 640px panel height");
+            Check(c.Hits.Where(h=>h.Id.Contains("multiplier.")).Count()==29&&c.Hits.Where(h=>h.Id.Contains("multiplier.")).All(h=>h.Rect.H>=32),"all four sliders and multiplier buttons retain at least 32px click height");
+            Check(c.Hits.Where(h=>h.Id.StartsWith("slider.multiplier.")).All(h=>h.Rect.W==302)&&!Overlaps(c.Hits),"integer sliders share their visible track width and do not overlap neighboring controls");
+            Check(c.Texts.Where(t=>t.Text.Contains("保留现货")||t.Text.Contains("关闭所有开关")||t.Text==model.Status).All(t=>t.Rect.Y+t.Rect.H<=640),"compact explanatory notes and status remain inside the panel");
+            Check(c.Hits.Where(h=>h.Id.StartsWith("nav.")).All(h=>h.Rect.H==38&&h.Rect.Y+h.Rect.H<=512),"compact sidebar navigation ends above the connection card");
+            Check(!c.Texts.Any(t=>t.Text=="常用倍率"),"compact cards omit the redundant preset heading");
+        }
+        for(int i=0;i<keys.Length;i++)
+        {
+            string id="multiplier."+keys[i];int index=i;
+            set[index](1);actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+".minus";TrainerView.Render(c,model);Check(get[index]()==1&&actions.Count==0&&c.Hits.Any(h=>h.Id==id+".minus"&&!h.Enabled),keys[i]+" multiplier cannot go below one");}
+            set[index](maximums[index]);actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+".plus";TrainerView.Render(c,model);Check(get[index]()==maximums[index]&&actions.Count==0&&c.Hits.Any(h=>h.Id==id+".plus"&&!h.Enabled),keys[i]+" multiplier cannot exceed its integer maximum");}
+            set[index](7);actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+".plus";TrainerView.Render(c,model);Check(get[index]()==8&&actions.SequenceEqual(new[]{id+":8"}),keys[i]+" plus increments by exactly one and emits an integer");}
+            actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+".minus";TrainerView.Render(c,model);Check(get[index]()==7&&actions.SequenceEqual(new[]{id+":7"}),keys[i]+" minus decrements by exactly one and emits an integer");}
+            int[] presets=maximums[index]==20?new[]{1,2,5,10,20}:new[]{1,2,5,10};
+            foreach(int preset in presets)
+            {
+                set[index](preset==1?2:1);actions.Clear();
+                using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+"."+preset;TrainerView.Render(c,model);Check(get[index]()==preset&&actions.SequenceEqual(new[]{id+":"+preset}),keys[i]+" preset "+preset+" dispatches its own integer setting");}
+            }
+            actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas()){c.ClickId=id+"."+get[index]();TrainerView.Render(c,model);Check(actions.Count==0,keys[i]+" unchanged preset does not dispatch a duplicate setting");}
+            float[] rawValues={4.49f,4.5f,-10,maximums[index]+10,Single.MaxValue};int[] expected={4,5,1,maximums[index],maximums[index]};
+            for(int sample=0;sample<rawValues.Length;sample++)
+            {
+                set[index](7);actions.Clear();
+                using(PreviewCanvas c=new PreviewCanvas(640))
+                {
+                    c.NextSliders[id+".slider"]=rawValues[sample];TrainerView.Render(c,model);
+                    Check(get[index]()==expected[sample]&&actions.SequenceEqual(new[]{id+":"+expected[sample]})&&c.Texts.Any(t=>t.Text=="当前 "+expected[sample]+"×"),keys[i]+" slider rounds or clamps input "+rawValues[sample].ToString(CultureInfo.InvariantCulture)+" to one integer setting");
+                }
+            }
+            float[] unchangedValues={7,7.49f,Single.NaN,Single.PositiveInfinity,Single.NegativeInfinity};
+            foreach(float raw in unchangedValues)
+            {
+                set[index](7);actions.Clear();
+                using(PreviewCanvas c=new PreviewCanvas(640))
+                {
+                    c.NextSliders[id+".slider"]=raw;TrainerView.Render(c,model);
+                    Check(get[index]()==7&&actions.Count==0,keys[i]+" slider ignores unchanged or nonfinite input "+raw.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+        }
+        model.Ready=false;
+        for(int i=0;i<keys.Length;i++)
+        {
+            set[i](5);actions.Clear();
+            using(PreviewCanvas c=new PreviewCanvas(640))
+            {
+                c.ClickId="multiplier."+keys[i]+".plus";c.NextSliders["multiplier."+keys[i]+".slider"]=9.5f;TrainerView.Render(c,model);
+                Check(get[i]()==5&&actions.Count==0&&c.Hits.Where(h=>h.Id.Contains("multiplier.")).Count()==29&&c.Hits.Where(h=>h.Id.Contains("multiplier.")).All(h=>!h.Enabled)&&c.SliderCalls.Count==0,keys[i]+" and every multiplier control are disabled without a map");
+            }
+        }
     }
 }

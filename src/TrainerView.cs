@@ -20,11 +20,13 @@ namespace DawnTrainer
 
     internal sealed partial class UiModel
     {
-        internal string Version = "1.3.1", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
+        internal string Version = "1.4.0", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
+        internal string GameVersion = "";
         internal bool Ready, Domestic, BuildHotkey, KillHotkey, GiveHotkey, Busy, StatusError;
         internal bool[] Locks = new bool[7];
         internal int Page, Category, Location, Age = 1, Gender = 2, Knowledge, SelectionCount, BuildTargets, KillTargets;
         internal int ResourceCount, AnimalCount, Done, Total, Weather;
+        internal int StorageMultiplier = 1, BuildMultiplier = 1, CarryMultiplier = 1, TransportMultiplier = 1;
         internal float Speed = 1, ResourceScroll, AnimalScroll;
         internal string SelectedResource, SelectedAnimal;
         internal string ResourceSearch = "", AnimalSearch = "", SelectionName = "", TaskName = "", CompletedName = "";
@@ -34,7 +36,7 @@ namespace DawnTrainer
         {
             if(next==Page)return;
             if(Page==1)ResourceSearch=Search;else if(Page==2)AnimalSearch=Search;
-            Page=next;Search=next==1?ResourceSearch:next==2?AnimalSearch:"";
+            Page=next;Search=next==1?ResourceSearch:next==2?AnimalSearch:"";ArmedAction=null;
             Emit("page",next.ToString());
         }
         internal List<UiItem> Resources = new List<UiItem>(), Animals = new List<UiItem>();
@@ -61,14 +63,16 @@ namespace DawnTrainer
     internal static partial class TrainerView
     {
         internal const float Width = 1180, Height = 800, Sidebar = 216;
+        internal static int PanelHeight(int page) { return page==8?640:800; }
         internal const string Background = "#17181B", Side = "#121316", Surface = "#1D1F23", Border = "#303238";
         internal const string TextMain = "#F0F1F4", Muted = "#B1B8C5", Quiet = "#969FAD", Accent = "#A8B7FF";
         private const float MainX = 244, MainW = 908;
-        private static readonly string[] Pages = { "基础功能", "添加资源", "产生动物", "世界控制", "使用说明", "选中目标", "物资包", "偏好设置" };
+        private static readonly string[] Pages = { "基础功能", "添加资源", "产生动物", "世界控制", "使用说明", "选中目标", "物资包", "偏好设置", "效率倍率" };
         private static readonly string[] Descriptions = {
             "管理人物状态、游戏速度与选中目标。", "找到所需物品，按数量添加到地图。", "选择物种、年龄与性别，在地图中生成动物。",
             "调整流速、天气，邀请移民与商人。", "快捷键、添加位置与常用操作。",
-            "查看与救助选中单位，补给和维护建筑。", "保存常用清单，一次添加多种资源。", "快捷键、自动暂停和个人偏好。"
+            "管理选中的人物、动物和建筑，可直接在面板外点选。", "保存常用清单，一次添加多种资源。", "快捷键、自动暂停和个人偏好。",
+            "分别调整仓储、施工和搬运效率，按整数设置倍率。"
         };
         private static readonly string[] StatNames = { "健康", "饱食", "口渴", "温度", "体力", "休息", "精神" };
 
@@ -99,6 +103,13 @@ namespace DawnTrainer
             c.Fill(r, fill, 8);
             c.Text(r, label, 14, ink, style == 1, 1);
             return c.Hit(r, id, enabled);
+        }
+        // A destructive button that needs confirmation runs on its second click; the runtime expires the armed state.
+        private static bool Confirmed(UiModel m, string id, bool needed, bool clicked)
+        {
+            if (!clicked || !needed) return clicked;
+            if (m.ArmedAction == id) { m.ArmedAction = null; return true; }
+            m.ArmedAction = id; m.Emit("confirm.arm", id); return false;
         }
         private static bool Switch(UiCanvas c, UiRect r, string id, bool value, UiRect? hitArea = null)
         {
@@ -141,51 +152,72 @@ namespace DawnTrainer
                 else { l(6,16,4,20); l(13,16,11,20);l(20,16,18,20); if(name!="rain"){l(3,18,7,18);l(10,18,14,18);l(17,18,21,18);}if(name=="blizzard"){l(0,4,7,4);l(-2,10,2,10);l(15,0,23,0);} }
             }
             else if (name == "arrow") { l(5,12,19,12);l(14,7,19,12);l(19,12,14,17); }
+            else if (name == "target") { l(12,2,12,8);l(12,16,12,22);l(2,12,8,12);l(16,12,22,12);l(9,9,15,9);l(15,9,15,15);l(15,15,9,15);l(9,15,9,9); }
+            else if (name == "pack") { l(8,3,16,3);l(8,3,8,12);l(16,3,16,12);l(3,12,21,12);l(3,21,21,21);l(3,12,3,21);l(12,12,12,21);l(21,12,21,21); }
+            else if (name == "sliders")
+            {
+                l(3,6,21,6);l(3,12,21,12);l(3,18,21,18);
+                foreach (float[] knob in new float[][] { new float[] { 8, 6 }, new float[] { 16, 12 }, new float[] { 10, 18 } })
+                    c.Fill(R(x+(knob[0]-2.5f)*s,y+(knob[1]-2.5f)*s,5*s,5*s),color,2.5f*s);
+            }
         }
 
         internal static void Render(UiCanvas c, UiModel m)
         {
-            c.Fill(R(0,0,Width,Height), "#363941", 20);
-            c.Fill(R(1,1,Width-2,Height-2), Background, 19);
-            c.Fill(R(1,1,Sidebar-1,Height-2), Side, 19);
-            c.Fill(R(Sidebar-20,1,20,Height-2), Side, 0);
-            c.Line(Sidebar,1,Sidebar,Height-1,"#292B31",1);
+            int height=PanelHeight(m.Page);
+            c.Fill(R(0,0,Width,height), "#363941", 20);
+            c.Fill(R(1,1,Width-2,height-2), Background, 19);
+            c.Fill(R(1,1,Sidebar-1,height-2), Side, 19);
+            c.Fill(R(Sidebar-20,1,20,height-2), Side, 0);
+            c.Line(Sidebar,1,Sidebar,height-1,"#292B31",1);
             DrawSidebar(c,m);
             DrawHeader(c,m);
-            if (!m.Ready && m.Page!=4 && m.Page!=6 && m.Page!=7) DrawEmptyWorld(c);
+            if (!m.Ready && m.Page!=4 && m.Page!=6 && m.Page!=7 && m.Page!=8) DrawEmptyWorld(c);
             else if (m.Page == 0) DrawOverview(c,m);
             else if (m.Page == 1 || m.Page == 2) DrawCatalog(c,m,m.Page==2);
             else if (m.Page == 3) DrawWorld(c,m);
             else if (m.Page == 5) DrawTargets(c,m);
             else if (m.Page == 6) DrawPacks(c,m);
             else if (m.Page == 7) DrawPreferences(c,m);
+            else if (m.Page == 8) DrawMultipliers(c,m);
             else DrawHelp(c,m);
             DrawStatus(c,m);
         }
 
         private static void DrawSidebar(UiCanvas c, UiModel m)
         {
+            bool compact=m.Page==8;
             c.Fill(R(20,26,38,38), "#29324C", 11);
             c.Text(R(20,26,38,38),"D",23,Accent,true,1);
             c.Text(R(70,25,132,25),"人类黎明",17,TextMain,true,0);
             Label(c,70,51,132,19,"游戏内控制台",12,Quiet);
             Label(c,24,107,150,20,"工作空间",11,Quiet);
-            string[] icons={"basic","box","paw","sun","help","basic","box","help"};
-            int[] order={0,5,1,2,6,3,7,4};
+            string[] icons={"basic","box","paw","sun","help","target","pack","sliders","sliders"};
+            int[] order={0,5,1,2,6,3,8,7,4};
             for(int row=0;row<order.Length;row++)
             {
-                int i=order[row]; UiRect r=R(12,138+row*52,192,44);
+                int i=order[row]; UiRect r=R(12,138+row*(compact?42:48),192,compact?38:44);
                 bool selected=m.Page==i;
                 if(selected||c.Hover(r)) c.Fill(r,selected?"#262D40":"#202329",9);
-                Glyph(c,icons[i],25,r.Y+12,20,selected?Accent:Muted);
-                Label(c,58,r.Y+10,116,24,Pages[i],14,selected?"#DAE1FF":Muted);
-                if(i==1 && m.ResourceCount>0) Pill(c,R(164,r.Y+13,28,19),m.ResourceCount.ToString(),selected);
+                Glyph(c,icons[i],25,r.Y+(compact?9:12),20,selected?Accent:Muted);
+                Label(c,58,r.Y+(compact?7:10),116,24,Pages[i],14,selected?"#DAE1FF":Muted);
+                if(i==1 && m.ResourceCount>0) Pill(c,R(164,r.Y+(compact?10:13),28,19),m.ResourceCount.ToString(),selected);
                 if(c.Hit(r,"nav."+i,true)) m.Navigate(i);
+            }
+            if(compact)
+            {
+                Card(c,R(16,544,184,56),"#191C22");
+                Dot(c,30,555,m.Ready?"#8ECDB4":"#D3B77E");
+                Label(c,44,548,143,21,m.Ready?"已连接当前地图":"等待进入地图",13,TextMain);
+                Label(c,30,575,155,19,"Dawn of Man  " + m.GameVersion,11,Quiet);
+                Key(c,R(20,610,30,22),"F11");Label(c,55,610,65,22,"显示/隐藏",12,Muted);
+                Key(c,R(125,610,30,22),"Esc");Label(c,160,610,40,22,"关闭",12,Muted);
+                return;
             }
             Card(c,R(16,Height-178,184,84),"#191C22");
             Dot(c,30,Height-157,m.Ready?"#8ECDB4":"#D3B77E");
             Label(c,44,Height-164,143,22,m.Ready?"已连接当前地图":"等待进入地图",13,TextMain);
-            Label(c,30,Height-135,155,21,"Dawn of Man  1.8.4",11,Quiet);
+            Label(c,30,Height-135,155,21,"Dawn of Man  " + m.GameVersion,11,Quiet);
             Key(c,R(24,Height-73,35,23),"F11"); Label(c,69,Height-73,130,23,"显示 / 隐藏",12,Muted);
             Key(c,R(24,Height-42,35,22),"Esc"); Label(c,69,Height-42,130,22,"关闭面板",12,Muted);
         }
@@ -200,14 +232,22 @@ namespace DawnTrainer
             if(m.Busy&&Button(c,R(816,34,142,34),"spawn.cancel","停止后续生成",2,true))m.Emit("spawn.cancel","");
             Rule(c,MainX,108,MainW);
             if(c.Hover(R(972,34,134,34)))
-            {c.Fill(R(915,78,237,30),"#303644",7);c.Text(R(923,78,221,30),"关闭持续开关，并恢复 1× 速度",13,TextMain,false,1);}
+            {c.Fill(R(845,78,307,30),"#303644",7);c.Text(R(853,78,291,30),"关闭持续开关，速度与效率均恢复 1×",13,TextMain,false,1);}
         }
         private static void DrawStatus(UiCanvas c, UiModel m)
         {
-            Rule(c,MainX,Height-51,MainW);
-            Dot(c,MainX,Height-28,m.StatusError?"#EE9CA6":m.Busy?Accent:"#8ECDB4");
-            Label(c,MainX+15,Height-39,MainW-160,28,Short(c,m.Status,MainW-172,13),13,m.StatusError?"#EEA5AD":Muted);
-            c.Text(R(1047,Height-38,105,26),"v"+m.Version,11,Quiet,false,2);
+            int height=PanelHeight(m.Page);bool compact=m.Page==8;
+            Rule(c,MainX,height-(compact?25:51),MainW);
+            Dot(c,MainX,height-(compact?15:28),m.StatusError?"#EE9CA6":m.Busy?Accent:"#8ECDB4");
+            Label(c,MainX+15,height-(compact?24:39),MainW-160,compact?20:28,Short(c,m.Status,MainW-172,13),13,m.StatusError?"#EEA5AD":Muted);
+            c.Text(R(1047,height-(compact?24:38),105,compact?20:26),"v"+m.Version,11,Quiet,false,2);
+        }
+        internal static void RenderToast(UiCanvas c, float screenWidth, string text, bool error)
+        {
+            float w=Math.Min(640,c.Measure(text,14,false)+60),x=(screenWidth-w)/2;
+            c.Fill(R(x,80,w,44),"#363941",12);c.Fill(R(x+1,81,w-2,42),Background,11);
+            Dot(c,x+20,99,error?"#EE9CA6":"#8ECDB4");
+            c.Text(R(x+36,88,w-52,28),Short(c,text,w-52,14),14,error?"#EEA5AD":TextMain,false,0);
         }
         private static void DrawEmptyWorld(UiCanvas c)
         {
@@ -227,7 +267,8 @@ namespace DawnTrainer
         private static void DrawOverview(UiCanvas c, UiModel m)
         {
             Summary(c,R(MainX,126,292,66),"人物保护",Enabled(m)+" 项启用",m.Domestic?"含玩家家畜":"玩家人物");
-            Summary(c,R(MainX+308,126,292,66),"时间流速",m.AutoPauseActive?"面板暂停":m.Speed==0?"已暂停":m.Speed.ToString("0.##")+"×","最高 15 倍");
+            Summary(c,R(MainX+308,126,292,66),"时间流速",m.AutoPauseActive?"面板暂停":m.Speed==0?"已暂停":m.Speed.ToString("0.##")+"×",
+                m.AutoPauseActive?(m.Speed==0?"关闭后保持暂停":"关闭后 "+m.Speed.ToString("0.##")+"×"):"最高 15 倍");
             Summary(c,R(MainX+616,126,292,66),"当前选择",m.SelectionCount+" 个目标",m.SelectionCount==0?"在地图中选择":"支持多选");
 
             UiRect attr=R(MainX,208,560,328); Card(c,attr,Surface);
@@ -255,40 +296,45 @@ namespace DawnTrainer
             int[] amounts={10,100,1000};
             for(int i=0;i<3;i++)if(Button(c,R(840+i*99,482,92,34),"knowledge."+amounts[i],"+"+amounts[i],0,true))m.Emit("knowledge",amounts[i].ToString());
 
+            // All selected-target actions live on their own page; the overview summarizes and links there.
             Card(c,R(MainX,552,MainW,176),Surface);
-            c.Text(R(MainX+20,568,200,25),"选中目标操作",16,TextMain,true,0);
-            Label(c,MainX+210,570,640,22,"先隐藏面板选择目标，再回来执行。",12,Muted);
-            ActionTile(c,m,R(MainX+20,610,426,96),false);
-            ActionTile(c,m,R(MainX+462,610,426,96),true);
+            c.Text(R(MainX+20,568,200,25),"选中目标",16,TextMain,true,0);
+            Label(c,MainX+210,570,500,22,"可直接在面板外点选地图上的目标。",12,Muted);
+            if(Button(c,R(MainX+MainW-170,563,150,34),"targets.open","前往选中目标",0,true))m.Navigate(5);
+            string[] kinds={"可救助","可驯化","可杀死","未完工建筑","可修缮"};
+            int[] counts={m.RescueTargets,m.TameTargets,m.KillTargets,m.BuildTargets,m.RepairTargets+m.ResourceRepairTargets};
+            for(int i=0;i<kinds.Length;i++)
+            {
+                UiRect tile=R(MainX+20+i*176,610,164,96);c.Fill(tile,"#23262D",9);
+                Label(c,tile.X+14,tile.Y+12,tile.W-28,20,i==2&&!String.IsNullOrEmpty(m.KillVillagers)?"可杀死 · 含村民":kinds[i],13,i==2&&!String.IsNullOrEmpty(m.KillVillagers)?"#F2AAB4":Muted);
+                c.Text(R(tile.X+14,tile.Y+40,tile.W-28,34),counts[i].ToString(),26,counts[i]>0?TextMain:Quiet,true,0);
+            }
         }
 
-        private static void ActionTile(UiCanvas c, UiModel m, UiRect r, bool kill)
+        // The slider is logarithmic: every doubling of speed gets the same width, so 0.25×–1× is as easy to hit as 4×–15×.
+        internal static float SpeedTrack(float speed) { return (float)(Math.Log(Math.Max(.25f,Math.Min(15,speed))/.25)/Math.Log(60)); }
+        private static float TrackSpeed(float track)
         {
-            c.Fill(r,"#23262D",9);
-            Label(c,r.X+14,r.Y+9,200,24,kill?"杀死选中单位":"快速完成建造",15,TextMain);
-            int targets=kill?m.KillTargets:m.BuildTargets;
-            c.Text(R(r.X+229,r.Y+10,r.W-243,23),targets>0?targets+" 个可操作目标":"请先选择目标",13,Muted,false,2);
-            Label(c,r.X+14,r.Y+54,137,25,"启用 "+KeyName(m.Preferences.Keys[kill?1:0])+" 快捷键",13,Muted);
-            if(kill)m.KillHotkey=Switch(c,R(r.X+151,r.Y+55,40,23),"kill.hotkey",m.KillHotkey);
-            else m.BuildHotkey=Switch(c,R(r.X+151,r.Y+55,40,23),"build.hotkey",m.BuildHotkey);
-            string label=targets==0?"选择目标后可用":kill?"杀死 "+targets+" 个单位":"完成 "+targets+" 个建造";
-            if(Button(c,R(r.X+r.W-203,r.Y+48,189,36),kill?"kill":"complete",label,kill?2:0,targets>0))m.Emit(kill?"kill":"complete","");
+            float speed=(float)(.25*Math.Pow(60,Math.Max(0,Math.Min(1,track))));
+            return speed<1?(float)Math.Round(speed*4)/4:(float)Math.Round(speed);
         }
-
         private static void DrawSpeedCard(UiCanvas c, UiModel m, UiRect r, bool wide)
         {
             Card(c,r,Surface);
             c.Text(R(r.X+20,r.Y+16,160,24),"游戏速度",16,TextMain,true,0);
             Pill(c,R(r.X+r.W-98,r.Y+17,78,24),m.AutoPauseActive?"面板暂停":m.Speed==0?"暂停":m.Speed.ToString("0.##")+"×",true);
             float sliderY=r.Y+66,sliderW=r.W-44;
-            float current=Math.Max(.25f,m.Speed);
-            float raw=c.Slider(R(r.X+22,sliderY-8,sliderW,28),"speed.slider",current,.25f,15);
-            float next=raw<1?(float)Math.Round(raw*4)/4:(float)Math.Round(raw);
+            float current=Math.Max(.25f,Math.Min(15,m.Speed)),track=SpeedTrack(current);
+            float raw=c.Slider(R(r.X+22,sliderY-8,sliderW,28),"speed.slider",track,0,1);
             c.Fill(R(r.X+22,sliderY+4,sliderW,4),"#383D49",2);
-            float knob=(current-.25f)/14.75f*sliderW;c.Fill(R(r.X+22,sliderY+4,knob,4),Accent,2);
+            float knob=track*sliderW;c.Fill(R(r.X+22,sliderY+4,knob,4),Accent,2);
             c.Fill(R(r.X+17+knob,sliderY,12,12),"#DDE5FF",6);
-            if(next!=current)m.Emit("speed",next.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            float[] presets=wide?new float[]{.25f,.5f,1,2,4,8,15}:new float[]{.5f,1,4};float presetW=(r.W-40-2*presets.Length)/(presets.Length+1);
+            // Only an actual drag dispatches, so a speed between the slider steps is never rewritten on its own.
+            float next=TrackSpeed(raw);
+            if(Math.Abs(raw-track)>.0001f&&next!=current)m.Emit("speed",next.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            // While the panel holds the pause, a highlighted speed is the one restored on close; say so.
+            if(m.AutoPauseActive)Label(c,r.X+22,r.Y+84,sliderW,22,m.Speed==0?"关闭面板后保持暂停":"关闭面板后恢复 "+m.Speed.ToString("0.##")+"×",13,Accent);
+            float[] presets=wide?new float[]{.25f,.5f,1,2,4,8,15}:new float[]{.5f,1,2,4};float presetW=(r.W-40-2*presets.Length)/(presets.Length+1);
             for(int i=0;i<presets.Length;i++)if(Chip(c,R(r.X+20+i*(presetW+2),r.Y+111,presetW,30),"speed."+presets[i].ToString(System.Globalization.CultureInfo.InvariantCulture),presets[i]+"×",m.Speed==presets[i]))m.Emit("speed",presets[i].ToString(System.Globalization.CultureInfo.InvariantCulture));
             if(Chip(c,R(r.X+20+presets.Length*(presetW+2),r.Y+111,presetW,30),"speed.pause",m.Speed==0?"继续":"暂停",m.Speed==0))m.Emit("pause","");
         }
@@ -414,10 +460,13 @@ namespace DawnTrainer
             Label(c,x,locationY+68,w,23,position,13,Muted);
             if(!animal)
             {
-                c.Fill(R(x,r.Y+456,w,54),"#232731",9);
-                Label(c,x+12,r.Y+470,w-70,24,"启用 "+m.Preferences.Keys[2]+" 快捷添加",13,Muted);
-                m.GiveHotkey=Switch(c,R(x+w-52,r.Y+471,40,23),"give.hotkey",m.GiveHotkey);
-                if(Button(c,R(x,r.Y+516,w,28),"pack.add","加入当前物资包",0,item!=null&&valid))AddPackItem(m,item.Id,quantity);
+                c.Fill(R(x,r.Y+444,w,46),"#232731",9);
+                Label(c,x+12,r.Y+455,w-70,24,"启用 "+m.Preferences.Keys[2]+" 快捷添加",13,Muted);
+                m.GiveHotkey=Switch(c,R(x+w-52,r.Y+456,40,23),"give.hotkey",m.GiveHotkey);
+                // Name the pack that receives the item, and keep a clear gap above the primary button.
+                int packIndex=Math.Max(0,Math.Min(m.ActivePack,m.Preferences.Packs.Count-1));
+                string packLabel=m.Preferences.Packs.Count==0?"加入新物资包":"加入物资包「"+Short(c,m.Preferences.Packs[packIndex].Name,w-130,14)+"」";
+                if(Button(c,R(x,r.Y+498,w,34),"pack.add",packLabel,0,item!=null&&valid))AddPackItem(m,item,quantity,true);
             }
             string noun=item==null?"":Short(c,item.Name,w-116,14);
             string primary=m.Busy?"正在添加 · "+(m.Total>0?Math.Round(100f*m.Done/m.Total):0)+"%":item==null?"请先选择一项":(animal?"生成 ":"添加 ")+noun+" × "+(valid?count.ToString():"—");
@@ -447,7 +496,7 @@ namespace DawnTrainer
         {
             Card(c,R(MainX,126,438,328),Surface);c.Text(R(MainX+20,146,390,28),"键盘操作",17,TextMain,true,0);
             string[] keys={"F11","Esc",m.Preferences.Keys[0],m.Preferences.Keys[1],m.Preferences.Keys[2]};
-            string[] labels={"显示或隐藏修改器","关闭面板","完成建造 · 需启用快捷键","杀死单位 · 需启用快捷键","重复添加 · 需启用快捷键"};
+            string[] labels={"显示或隐藏修改器","关闭面板","完成建造 · 在选中目标页启用","杀死单位 · 选中目标页启用，村民按两次","重复添加 · 在资源页启用"};
             for(int i=0;i<5;i++){Key(c,R(MainX+20,195+i*46,74,26),KeyName(keys[i]));Label(c,MainX+110,194+i*46,305,29,labels[i],14,TextMain);}
             Card(c,R(698,126,454,328),Surface);c.Text(R(718,146,414,28),"添加资源",17,TextMain,true,0);
             string[] steps={"搜索名称或英文 ID，点击物品卡片。","填写数量，选择生成位置。","点击添加，再由村民搬运入库。"};
@@ -456,7 +505,7 @@ namespace DawnTrainer
             Card(c,R(MainX,474,MainW,242),Surface);c.Text(R(MainX+20,494,MainW-40,28),"使用提示",17,TextMain,true,0);
             string[] tips={
                 "开关每次启动默认关闭；人物保护默认仅作用于玩家人物。",
-                "操作快捷键在菜单、输入框和模态窗口中停用；F8 仍打开游戏家畜面板。",
+                "面板打开时可直接点选面板外的目标；操作快捷键在面板、菜单和输入框中停用。",
                 "添加物品、知识、建造和死亡结果会随游戏存档保存。",
                 "健康锁保持健康值；寿命结束、雷击等直接死亡机制不在保护范围。",
                 "可在偏好设置开启面板自动暂停；收藏、物资包和键位会自动保存。"
