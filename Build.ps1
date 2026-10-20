@@ -1,5 +1,8 @@
-param([string]$GamePath = $(if (Test-Path 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan') { 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan' } else { Join-Path (Split-Path $PSScriptRoot -Parent) 'DawnOfMan' }))
+param([string]$GamePath = '..\DawnOfMan')
 $ErrorActionPreference = 'Stop'
+if ([IO.Path]::IsPathRooted($GamePath) -and [IO.Path]::GetPathRoot($GamePath).Length -lt 3) { throw '请使用相对脚本的路径，或包含完整根目录的绝对路径。' }
+if (-not [IO.Path]::IsPathRooted($GamePath)) { $GamePath = Join-Path $PSScriptRoot $GamePath }
+$GamePath = [IO.Path]::GetFullPath($GamePath)
 $compilerPath = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $managedPath = Join-Path $GamePath 'DawnOfMan_Data\Managed'
 $references = @('mscorlib','System','System.Core','netstandard','Assembly-CSharp','UnityEngine','UnityEngine.CoreModule','UnityEngine.IMGUIModule','UnityEngine.InputLegacyModule','UnityEngine.PhysicsModule','UnityEngine.TextRenderingModule','UnityEngine.ImageConversionModule') | ForEach-Object { '/reference:' + (Join-Path $managedPath ($PSItem + '.dll')) }

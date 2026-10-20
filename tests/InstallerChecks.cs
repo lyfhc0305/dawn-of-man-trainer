@@ -16,9 +16,9 @@ internal static class InstallerChecks
     private sealed class Fixture
     {
         internal string Game, Managed, State, Assembly, Plugin, Manifest, Backup, Transaction;
-        internal Fixture(string label)
+        internal Fixture(string label, string gameDirectory = null)
         {
-            Game = Path.Combine(work, label + "-" + Guid.NewGuid().ToString("N"));
+            Game = gameDirectory ?? Path.Combine(work, label + "-" + Guid.NewGuid().ToString("N"));
             Managed = Path.Combine(Game, "DawnOfMan_Data", "Managed");
             State = Path.Combine(Game, "DawnTrainer");
             Assembly = Path.Combine(Managed, "Assembly-CSharp.dll");
@@ -473,6 +473,82 @@ internal static class InstallerChecks
         }
     }
 
+    private static string PathProbe(string installerDirectory)
+    {
+        Directory.CreateDirectory(installerDirectory);
+        string runner = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        string destination = Path.Combine(installerDirectory, Path.GetFileName(runner));
+        File.Copy(runner, destination);
+        File.Copy(typeof(AssemblyDefinition).Assembly.Location, Path.Combine(installerDirectory, "Mono.Cecil.dll"));
+        return destination;
+    }
+
+    private static int RunPathProbe(string runner, string currentDirectory, string requestedGame)
+    {
+        string arguments = "--path-run \"" + bundle1 + "\" " + originalHash + " \"" + (requestedGame ?? "--default") + "\"";
+        using (Process child = Process.Start(new ProcessStartInfo
+        {
+            FileName = runner, Arguments = arguments, WorkingDirectory = currentDirectory,
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+        }))
+        {
+            output = child.StandardOutput.ReadToEnd() + child.StandardError.ReadToEnd();
+            if (!child.WaitForExit(30000)) { child.Kill(); throw new Exception("Path resolution child timed out."); }
+            return child.ExitCode;
+        }
+    }
+
+    private static void PathChecks()
+    {
+        string layout = Path.Combine(work, "path-layout-" + Guid.NewGuid().ToString("N"));
+        string installerDirectory = Path.Combine(layout, "Trainer"), expectedDefault = Path.Combine(layout, "DawnOfMan");
+        string firstCaller = Path.Combine(layout, "Caller A"), secondCaller = Path.Combine(layout, "Caller B");
+        Directory.CreateDirectory(firstCaller); Directory.CreateDirectory(secondCaller);
+        string runner = PathProbe(installerDirectory);
+        Check(Installer.ResolveGamePath(null, installerDirectory) == expectedDefault, "missing default game resolves only to installer sibling");
+        Check(!Directory.Exists(expectedDefault), "default path resolution never creates or searches a game directory");
+        Fixture sibling = new Fixture("path-default", expectedDefault);
+        Fixture alternate = new Fixture("path-explicit", Path.Combine(layout, "AlternateGame"));
+        Check(Installer.ResolveGamePath(null, installerDirectory) == expectedDefault, "existing default sibling keeps the same relative resolution");
+        Check(Installer.ResolveGamePath(@"..\AlternateGame", installerDirectory) == alternate.Game, "explicit parent-relative game resolves from installer directory");
+        Check(Installer.ResolveGamePath(@".\nested\..\..\AlternateGame", installerDirectory) == alternate.Game, "explicit relative dot segments normalize from installer directory");
+        Check(Installer.ResolveGamePath(alternate.Game, installerDirectory) == alternate.Game, "complete custom absolute game path remains supported");
+        string previousDirectory = Environment.CurrentDirectory;
+        try
+        {
+            Environment.CurrentDirectory = firstCaller;
+            Check(Installer.ResolveGamePath(null, installerDirectory) == expectedDefault && Installer.ResolveGamePath(@"..\AlternateGame", installerDirectory) == alternate.Game,
+                "default and explicit relative paths ignore first caller working directory");
+            Environment.CurrentDirectory = secondCaller;
+            Check(Installer.ResolveGamePath(null, installerDirectory) == expectedDefault && Installer.ResolveGamePath(@"..\AlternateGame", installerDirectory) == alternate.Game,
+                "default and explicit relative paths ignore changed caller working directory");
+        }
+        finally { Environment.CurrentDirectory = previousDirectory; }
+        bool rejected = false;
+        try { Installer.ResolveGamePath(Path.GetPathRoot(layout).TrimEnd('\\', '/') + "relative-game", installerDirectory); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "ambiguous drive-relative path is rejected instead of using caller drive state");
+        rejected = false;
+        try { Installer.ResolveGamePath(Path.DirectorySeparatorChar + "relative-game", installerDirectory); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "ambiguous root-relative path is rejected instead of using caller drive state");
+        string siblingBefore = sibling.Snapshot(), alternateBefore = alternate.Snapshot();
+        Check(RunPathProbe(runner, firstCaller, null) == 0 && sibling.Snapshot() == siblingBefore, "actual default verify finds installer sibling from another directory");
+        Check(RunPathProbe(runner, secondCaller, null) == 0 && sibling.Snapshot() == siblingBefore, "actual default verify is unchanged after changing working directory");
+        Check(RunPathProbe(runner, firstCaller, @"..\AlternateGame") == 0 && alternate.Snapshot() == alternateBefore, "actual relative verify uses installer base instead of caller directory");
+        Check(RunPathProbe(runner, secondCaller, @"..\AlternateGame") == 0 && alternate.Snapshot() == alternateBefore, "actual relative verify is unchanged after changing working directory");
+        Check(RunPathProbe(runner, secondCaller, alternate.Game) == 0 && alternate.Snapshot() == alternateBefore, "actual absolute custom game verify remains supported");
+        string missingInstaller = Path.Combine(work, "missing-path-layout-" + Guid.NewGuid().ToString("N"), "Trainer");
+        string missingRunner = PathProbe(missingInstaller), missingDefault = Path.Combine(Path.GetDirectoryName(missingInstaller), "DawnOfMan");
+        Check(RunPathProbe(missingRunner, firstCaller, null) == 1 && !Directory.Exists(missingDefault) &&
+            sibling.Snapshot() == siblingBefore && alternate.Snapshot() == alternateBefore,
+            "missing default sibling stops without absolute-drive fallback or game changes");
+        string missingCustom = Path.Combine(layout, "MissingGame");
+        Check(RunPathProbe(runner, secondCaller, @"..\MissingGame") == 1 && !Directory.Exists(missingCustom) &&
+            sibling.Snapshot() == siblingBefore && alternate.Snapshot() == alternateBefore,
+            "missing explicit relative game stops without fallback or game changes");
+    }
+
     private static int HookExecution(string gamePath)
     {
         try
@@ -621,6 +697,11 @@ internal static class InstallerChecks
 
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--path-run")
+        {
+            originalHash = args[2]; Configure(args[1]);
+            return Installer.Run(args[3] == "--default" ? new[] { "--verify" } : new[] { args[3], "--verify" });
+        }
         if (args.Length > 0 && args[0] == "--execute") return HookExecution(args[1]);
         if (args.Length > 0 && args[0] == "--child")
         {
@@ -631,7 +712,7 @@ internal static class InstallerChecks
         try
         {
             work = Path.GetFullPath(args[0]); Directory.CreateDirectory(work);
-            BuildFixtures(); SuccessChecks(); ExceptionChecks(); InterruptionChecks(); ProtectionChecks(); MultiplierChecks();
+            BuildFixtures(); SuccessChecks(); ExceptionChecks(); InterruptionChecks(); ProtectionChecks(); MultiplierChecks(); PathChecks();
         }
         catch (Exception exception) { failed++; Console.WriteLine("FAIL unexpected exception: " + exception); }
         Console.WriteLine("Installer checks: " + passed + " passed, " + failed + " failed. Sandbox: " + work);

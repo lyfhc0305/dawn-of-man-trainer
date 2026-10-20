@@ -130,7 +130,7 @@ internal static class RegressionChecks
                 MethodDefinition method = installed.MainModule.GetType(parts[0]).Methods.Single(m => m.Name == parts[1]);
                 Check(Calls(method, "DawnTrainer.Trainer", "BlockInput"), "installed input gate intact: " + gate);
             }
-            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "1.4.0", "shipping version is 1.4.0");
+            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "1.4.1", "shipping version is 1.4.1");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.EntityManager","morphBeing")&&Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.KnowledgeManager","onNewResidentAnimal"),"taming uses native species conversion and resident notification");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="CanTame"),"DawnOfMan.ContextAction","doable"),"taming preserves native capture eligibility checks");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","increaseCondition")&&Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","resetRepairMaterials"),"building repair updates model and resets native repair materials");

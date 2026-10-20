@@ -1,0 +1,353 @@
+﻿PASS normal map permits hotkeys
+PASS loading/title rejects hotkeys
+PASS trainer overlay rejects hotkeys
+PASS noninteractive camera rejects hotkeys
+PASS game menu real-pause rejects hotkeys
+PASS modal dialog rejects hotkeys even without pause
+PASS focused input rejects hotkeys even without modal
+PASS Delete in save-name dialog never dispatches KillSelection
+PASS plain Insert builds
+PASS plain Delete kills when explicitly enabled
+PASS plain F10 gives resources
+PASS unhandled key dispatches no trainer action
+PASS disabled switches dispatch nothing
+PASS modifier chords dispatch nothing
+PASS successful first build records count and knowledge exactly once
+PASS repeated build skips completion and duplicate reward
+PASS successful threshold build records cumulative reward
+PASS unsuccessful completion records no build or reward
+PASS multipliers accept integral minimum and maximum values
+PASS multipliers reject values below 1 or above their supported range
+PASS capacity multiplier preserves 1x and scales actual per-slot capacity
+PASS capacity calculation saturates without integer overflow
+PASS unavailable capacity is never made positive by a multiplier
+PASS invalid capacity factors fall back to the native value
+PASS construction work scales without changing elapsed game time
+PASS invalid construction work cannot corrupt a build progress value
+PASS construction work remains finite and invalid factors preserve 1x
+PASS preferences preserve Unicode, favorites and multi-resource packs
+PASS preferences preserve shortcuts, quantities and window placement
+PASS interface size persists and unknown sizes fall back to automatic
+PASS automatic size keeps the panel near 75% of screen height
+PASS interface size preference scales the panel
+PASS every interface size fits common resolutions
+PASS dragging beyond left and right edges clamps without recentering
+PASS top and bottom edges clamp while valid window positions stay fixed
+PASS window clamp handles a screen with no spare space
+PASS invalid window coordinates recover to screen center
+PASS damaged entries and out-of-range preferences fall back safely
+PASS duplicate saved bindings recover to distinct defaults
+PASS oversized preference files are rejected
+PASS unknown preference format is rejected
+PASS preference updates replace a complete staged file
+PASS unreadable preferences are backed up before defaults can be saved
+PASS locked preferences are not overwritten this session
+PASS deleting all packs remains empty after reload
+PASS multi-resource plan validates all quantities before enqueue
+PASS unknown resource rejects the whole supply plan
+PASS invalid supply amount rejects the whole plan: 0
+PASS invalid supply amount rejects the whole plan: -1
+PASS invalid supply amount rejects the whole plan: 1001
+PASS invalid supply amount rejects the whole plan: abc
+PASS invalid supply amount rejects the whole plan: 
+PASS batch limit accepts exactly 5000 items
+PASS batch limit rejects excess before generating anything
+PASS oversized job lists cannot enter the queue
+PASS building supply plans may exceed 128 per-building jobs within the 5000 item limit
+PASS overlay pause restores quarter-speed exactly
+PASS opening an already paused world does not auto-resume it
+PASS overlay never acquires a native real pause
+PASS closing overlay cannot release a native menu pause
+PASS manual speed selection updates the pending restore speed
+PASS manual pause remains paused after closing overlay
+PASS external speed changes are not overwritten on close
+PASS map changes discard pause ownership
+PASS a speed set with the game's own keys ends the panel pause hold
+PASS manual pause and resume preserve an externally selected 8x speed
+PASS manual pause and resume preserve externally selected slow speed
+PASS manual pause and continue during automatic pause keep world stopped and restore 8x
+PASS explicit speed selection in an originally paused overlay waits until close
+PASS original pause without explicit speed selection remains untouched
+PASS reset during a native menu pause queues 1x without changing the game clock
+PASS pending reset applies 1x exactly once after the native menu closes
+PASS pending reset honors an open automatically paused panel and restores 1x on close
+PASS closing the panel before the menu does not discard the pending reset
+PASS map changes discard pending speed resets
+PASS ordinary reset restores 1x and overlay reset waits until the panel closes
+PASS kill confirmation requires a second press within four seconds and is consumed once
+PASS kill confirmation expires exactly at its deadline
+PASS switching away and back cannot reuse the original kill confirmation
+PASS explicit page or visibility cancellation requires a fresh kill confirmation
+PASS unassigned custom shortcut is accepted
+PASS duplicate trainer shortcuts are rejected
+PASS reserved and game-bound keys are rejected
+PASS mouse and modifier-only bindings are rejected
+PASS compiled runtime supplies all input-context guards
+PASS compiled frame dispatch uses guarded handler
+PASS compiled action hotkeys read configured bindings through the guarded dispatcher
+PASS custom shortcuts recheck current game bindings at dispatch
+PASS compiled hotkey handler consumes current game input frame
+PASS compiled quick-build uses tested completion policy
+PASS compiled quick-build contains game knowledge notification callback
+PASS tested policy IL matches shipping DLL: AllowsHotkeys
+PASS tested policy IL matches shipping DLL: SelectCommand
+PASS tested policy IL matches shipping DLL: CompleteBuild
+PASS installed input gate intact: DawnOfMan.GameGuiManager:updateInput
+PASS installed input gate intact: DawnOfMan.GameGuiManager:updateSpeedInputs
+PASS installed input gate intact: DawnOfMan.CameraModeInteractive:update
+PASS installed input gate intact: DawnOfMan.CameraModeInteractive:fixedUpdate
+PASS installed input gate intact: MadrugaShared.GuiManager:onEvent
+PASS shipping version is 1.4.1
+PASS taming uses native species conversion and resident notification
+PASS taming preserves native capture eligibility checks
+PASS building repair updates model and resets native repair materials
+PASS material preview reads a cloned outstanding delivery list
+PASS slow-speed restoration never releases native menu pauses
+PASS shipping speed controls use the tested manual and overlay pause paths
+PASS native window callback commits navigation and text edits before next model refresh
+PASS UI model reads the world only after Tick adopted its EntityManager
+PASS hidden-panel hotkey results are shown as a toast
+PASS open panel takes input only over itself, while typing or during its own drags
+PASS kill hotkey asks for a second press when villagers are selected
+PASS panel text is drawn at screen resolution instead of scaled by GUI.matrix
+PASS runtime reset uses deferred menu-safe speed restoration
+PASS kill confirmation observes selection changes every frame and cancels on navigation
+PASS runtime action uses filtered selection snapshot: CompleteSelected
+PASS runtime action uses filtered selection snapshot: KillSelected
+PASS runtime action uses filtered selection snapshot: SelectedVillagers
+PASS runtime action uses filtered selection snapshot: UpdateUiModel
+PASS construction and selection reject recycling and pending destruction
+PASS runtime window dragging uses bounded positions
+PASS tested multiplier policy IL matches shipping DLL: ValidMultiplier
+PASS tested multiplier policy IL matches shipping DLL: ScaledCapacity
+PASS tested multiplier policy IL matches shipping DLL: ScaleBuildWork
+PASS installed slot capacity gate: getCapacity
+PASS installed slot capacity gate: isFull
+PASS installed slot capacity gate: getSpaceLeft
+PASS installed slot capacity gate: canStoreEntity
+PASS installed overfull slots never report negative free space
+PASS installed construction scales native work before native completion
+PASS installed ordinary resource planning scales carry capacity: DawnOfMan.AiRuleGoGetResourceToStore
+PASS installed ordinary resource planning scales carry capacity: DawnOfMan.AiRuleTaskGetResource
+PASS general empty-slot queries keep their native meaning for bodies and equipment
+PASS reset and world transitions clear all production multipliers
+RESULT passed=133 failed=0; offline only, game not launched
+PASS sidebar displays the supplied game version instead of a fixed version
+PASS page 0 controls stay in window
+PASS page 0 interactive controls do not overlap
+PASS page 0 navigation stays clear of connection card
+PASS page 0 text stays within its actual panel height
+PASS page 1 controls stay in window
+PASS page 1 interactive controls do not overlap
+PASS page 1 navigation stays clear of connection card
+PASS page 1 text stays within its actual panel height
+PASS page 2 controls stay in window
+PASS page 2 interactive controls do not overlap
+PASS page 2 navigation stays clear of connection card
+PASS page 2 text stays within its actual panel height
+PASS page 3 controls stay in window
+PASS page 3 interactive controls do not overlap
+PASS page 3 navigation stays clear of connection card
+PASS page 3 text stays within its actual panel height
+PASS page 4 controls stay in window
+PASS page 4 interactive controls do not overlap
+PASS page 4 navigation stays clear of connection card
+PASS page 4 text stays within its actual panel height
+PASS page 5 controls stay in window
+PASS page 5 interactive controls do not overlap
+PASS page 5 navigation stays clear of connection card
+PASS page 5 text stays within its actual panel height
+PASS page 6 controls stay in window
+PASS page 6 interactive controls do not overlap
+PASS page 6 navigation stays clear of connection card
+PASS page 6 text stays within its actual panel height
+PASS page 7 controls stay in window
+PASS page 7 interactive controls do not overlap
+PASS page 7 navigation stays clear of connection card
+PASS page 7 text stays within its actual panel height
+PASS page 8 controls stay in window
+PASS page 8 interactive controls do not overlap
+PASS page 8 navigation stays clear of connection card
+PASS page 8 text stays within its actual panel height
+PASS maintenance tab controls stay in window without overlap
+PASS oversized resource count disables add
+PASS nonnumeric resource count disables add
+PASS busy generation disables duplicate add
+PASS empty search offers clear filters
+PASS live ID filter finds the six flint resources
+PASS oversized animal count disables generation
+PASS empty selection disables target action buttons
+PASS title/loading page exposes no game actions
+PASS overview preserves exact quarter-speed precision
+PASS overview summary identifies automatic pause instead of a running speed
+PASS resource primary button dispatches its intended action
+PASS animal primary button dispatches its intended action
+PASS danger button dispatches only kill action
+PASS killing selected villagers names them and waits for a second click
+PASS second click confirms the villager kill
+PASS changing page cancels a pending confirmation
+PASS custom switch changes its actual model value
+PASS quantity chip changes add quantity
+PASS page 1 invalid count text stays clear of controls
+PASS page 1 invalid count text has a separate row area
+PASS page 1 generation progress text stays clear of controls
+PASS page 1 generation progress text has a separate row area
+PASS page 2 invalid count text stays clear of controls
+PASS page 2 invalid count text has a separate row area
+PASS page 2 generation progress text stays clear of controls
+PASS page 2 generation progress text has a separate row area
+PASS speed slider dispatches selected speed
+PASS an untouched slider never rewrites a speed between its steps
+PASS logarithmic slider gives 0.25×–1× and 1×–4× the same width
+PASS search ignores leading and trailing spaces
+PASS filtered-out selection is explicitly identified
+PASS primary button identifies the actual item and count
+PASS clicking current navigation preserves search and category
+PASS clicking current navigation preserves valid scroll position
+PASS clearing search resets its scroll position
+PASS each catalog keeps its own search when navigating
+PASS four complete catalog rows are visible without cropped names
+PASS animal generation exposes both location choices
+PASS missing selection explains the actual spawn location
+PASS progress remains attached to original job after selection changes
+PASS success feedback names the completed item and amount
+PASS attribute row has a full-width click target
+PASS overview summarizes targets and opens the page that holds every target action
+PASS target switches explicitly enable shortcuts
+PASS focus states distinguish search and quantity fields
+PASS catalog names the pack that receives the item
+PASS pack and primary buttons are clearly separated
+PASS rescue button dispatches a one-time selection action
+PASS empty rescue and capture selections disable action buttons
+PASS maintenance view dispatches live building supply calculation
+PASS maintenance controls remain inside window
+PASS favorite button updates the actual saved preference model
+PASS favorites filter displays only saved favorites
+PASS selected resource and quantity can be added to a pack
+PASS valid pack primary button dispatches batch creation
+PASS one invalid item disables the entire pack execution
+PASS deleting a pack waits for a second click
+PASS second click deletes the pack
+PASS pack editor searches the catalog and adds items in place
+PASS invalid pack names the problem and the button asks for a fix
+PASS housing and existing visitors disable duplicate invitations
+PASS quarter-speed preset emits exact fractional speed
+PASS shortcut button starts capture for the intended action
+PASS automatic pause preference is directly editable
+PASS interface size preference is directly editable
+PASS active generation exposes an explicit stop action
+PASS adding an existing pack item repairs quantity '-10' without a duplicate row
+PASS repaired pack quantity '-10' allows execution
+PASS adding an existing pack item repairs quantity '0' without a duplicate row
+PASS repaired pack quantity '0' allows execution
+PASS adding an existing pack item repairs quantity 'abc' without a duplicate row
+PASS repaired pack quantity 'abc' allows execution
+PASS adding an existing pack item repairs quantity '' without a duplicate row
+PASS repaired pack quantity '' allows execution
+PASS adding an existing pack item repairs quantity '-2147483648' without a duplicate row
+PASS repaired pack quantity '-2147483648' allows execution
+PASS adding a repaired pack item continues from its repaired amount
+PASS existing quantity '1000' rejects addition without overflow or losing its value
+PASS existing quantity '1001' rejects addition without overflow or losing its value
+PASS existing quantity '2147483647' rejects addition without overflow or losing its value
+PASS adding exactly to the 1000 item boundary succeeds
+PASS new catalog item normalizes quantity ' 10 '
+PASS new catalog item normalizes quantity '0010'
+PASS new catalog item normalizes quantity '+10'
+PASS new catalog quantity '-1' cannot insert an invalid pack row
+PASS new catalog quantity '0' cannot insert an invalid pack row
+PASS new catalog quantity 'abc' cannot insert an invalid pack row
+PASS new catalog quantity '' cannot insert an invalid pack row
+PASS new catalog quantity '1001' cannot insert an invalid pack row
+PASS four integer multipliers start at 1x in version 1.4.1
+PASS efficiency page occupies the intended sidebar position
+PASS each multiplier displays its current integer value
+PASS efficiency page explains each scope and retains stock when capacity decreases
+PASS only the efficiency page uses the compact 640px panel height
+PASS all four sliders and multiplier buttons retain at least 32px click height
+PASS integer sliders share their visible track width and do not overlap neighboring controls
+PASS compact explanatory notes and status remain inside the panel
+PASS compact sidebar navigation ends above the connection card
+PASS compact cards omit the redundant preset heading
+PASS storage multiplier cannot go below one
+PASS storage multiplier cannot exceed its integer maximum
+PASS storage plus increments by exactly one and emits an integer
+PASS storage minus decrements by exactly one and emits an integer
+PASS storage preset 1 dispatches its own integer setting
+PASS storage preset 2 dispatches its own integer setting
+PASS storage preset 5 dispatches its own integer setting
+PASS storage preset 10 dispatches its own integer setting
+PASS storage unchanged preset does not dispatch a duplicate setting
+PASS storage slider rounds or clamps input 4.49 to one integer setting
+PASS storage slider rounds or clamps input 4.5 to one integer setting
+PASS storage slider rounds or clamps input -10 to one integer setting
+PASS storage slider rounds or clamps input 20 to one integer setting
+PASS storage slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS storage slider ignores unchanged or nonfinite input 7
+PASS storage slider ignores unchanged or nonfinite input 7.49
+PASS storage slider ignores unchanged or nonfinite input NaN
+PASS storage slider ignores unchanged or nonfinite input Infinity
+PASS storage slider ignores unchanged or nonfinite input -Infinity
+PASS build multiplier cannot go below one
+PASS build multiplier cannot exceed its integer maximum
+PASS build plus increments by exactly one and emits an integer
+PASS build minus decrements by exactly one and emits an integer
+PASS build preset 1 dispatches its own integer setting
+PASS build preset 2 dispatches its own integer setting
+PASS build preset 5 dispatches its own integer setting
+PASS build preset 10 dispatches its own integer setting
+PASS build preset 20 dispatches its own integer setting
+PASS build unchanged preset does not dispatch a duplicate setting
+PASS build slider rounds or clamps input 4.49 to one integer setting
+PASS build slider rounds or clamps input 4.5 to one integer setting
+PASS build slider rounds or clamps input -10 to one integer setting
+PASS build slider rounds or clamps input 30 to one integer setting
+PASS build slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS build slider ignores unchanged or nonfinite input 7
+PASS build slider ignores unchanged or nonfinite input 7.49
+PASS build slider ignores unchanged or nonfinite input NaN
+PASS build slider ignores unchanged or nonfinite input Infinity
+PASS build slider ignores unchanged or nonfinite input -Infinity
+PASS carry multiplier cannot go below one
+PASS carry multiplier cannot exceed its integer maximum
+PASS carry plus increments by exactly one and emits an integer
+PASS carry minus decrements by exactly one and emits an integer
+PASS carry preset 1 dispatches its own integer setting
+PASS carry preset 2 dispatches its own integer setting
+PASS carry preset 5 dispatches its own integer setting
+PASS carry preset 10 dispatches its own integer setting
+PASS carry unchanged preset does not dispatch a duplicate setting
+PASS carry slider rounds or clamps input 4.49 to one integer setting
+PASS carry slider rounds or clamps input 4.5 to one integer setting
+PASS carry slider rounds or clamps input -10 to one integer setting
+PASS carry slider rounds or clamps input 20 to one integer setting
+PASS carry slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS carry slider ignores unchanged or nonfinite input 7
+PASS carry slider ignores unchanged or nonfinite input 7.49
+PASS carry slider ignores unchanged or nonfinite input NaN
+PASS carry slider ignores unchanged or nonfinite input Infinity
+PASS carry slider ignores unchanged or nonfinite input -Infinity
+PASS transport multiplier cannot go below one
+PASS transport multiplier cannot exceed its integer maximum
+PASS transport plus increments by exactly one and emits an integer
+PASS transport minus decrements by exactly one and emits an integer
+PASS transport preset 1 dispatches its own integer setting
+PASS transport preset 2 dispatches its own integer setting
+PASS transport preset 5 dispatches its own integer setting
+PASS transport preset 10 dispatches its own integer setting
+PASS transport unchanged preset does not dispatch a duplicate setting
+PASS transport slider rounds or clamps input 4.49 to one integer setting
+PASS transport slider rounds or clamps input 4.5 to one integer setting
+PASS transport slider rounds or clamps input -10 to one integer setting
+PASS transport slider rounds or clamps input 20 to one integer setting
+PASS transport slider rounds or clamps input 3.402823E+38 to one integer setting
+PASS transport slider ignores unchanged or nonfinite input 7
+PASS transport slider ignores unchanged or nonfinite input 7.49
+PASS transport slider ignores unchanged or nonfinite input NaN
+PASS transport slider ignores unchanged or nonfinite input Infinity
+PASS transport slider ignores unchanged or nonfinite input -Infinity
+PASS storage and every multiplier control are disabled without a map
+PASS build and every multiplier control are disabled without a map
+PASS carry and every multiplier control are disabled without a map
+PASS transport and every multiplier control are disabled without a map
+UI RESULT passed=218 failed=0; shared layout rendered offline, game not launched

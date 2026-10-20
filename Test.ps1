@@ -1,8 +1,11 @@
 param(
-    [string]$GamePath = $(if (Test-Path 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan') { 'D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan' } else { Join-Path (Split-Path $PSScriptRoot -Parent) 'DawnOfMan' }),
+    [string]$GamePath = '..\DawnOfMan',
     [string]$WorkPath = (Join-Path $env:TEMP 'DawnOfManTrainer-offline-tests')
 )
 $ErrorActionPreference = 'Stop'
+if ([IO.Path]::IsPathRooted($GamePath) -and [IO.Path]::GetPathRoot($GamePath).Length -lt 3) { throw '请使用相对脚本的路径，或包含完整根目录的绝对路径。' }
+if (-not [IO.Path]::IsPathRooted($GamePath)) { $GamePath = Join-Path $PSScriptRoot $GamePath }
+$GamePath = [IO.Path]::GetFullPath($GamePath)
 $compilerPath = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $testOutput = [IO.Path]::GetFullPath($WorkPath)
 New-Item -ItemType Directory -Path $testOutput -Force | Out-Null

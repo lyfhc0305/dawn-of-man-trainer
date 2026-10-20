@@ -1,0 +1,155 @@
+﻿PASS fresh verify is read-only
+PASS fresh install completes
+PASS fresh install records matching library and assembly
+PASS verify rejects other package without changing installed files
+PASS update installs a different library and repatches original
+PASS update records matching library and assembly
+PASS update never overwrites original backup
+PASS uninstall verify is read-only
+PASS uninstall restores original and removes library and manifest
+PASS repeated uninstall is safe
+PASS install exception at transaction-published restores all three targets and retains original backup
+PASS install exception at after-assembly restores all three targets and retains original backup
+PASS install exception at after-plugin restores all three targets and retains original backup
+PASS install exception at after-manifest restores all three targets and retains original backup
+PASS update exception at transaction-published restores all three targets and retains original backup
+PASS update exception at after-assembly restores all three targets and retains original backup
+PASS update exception at after-plugin restores all three targets and retains original backup
+PASS update exception at after-manifest restores all three targets and retains original backup
+PASS uninstall exception at transaction-published restores all three targets and retains original backup
+PASS uninstall exception at after-assembly restores all three targets and retains original backup
+PASS uninstall exception at after-plugin restores all three targets and retains original backup
+PASS uninstall exception at after-manifest restores all three targets and retains original backup
+PASS install process interruption at transaction-published retains durable journal
+PASS pending install verify is read-only at transaction-published
+PASS next normal run restores pre-install files at transaction-published
+PASS uninstall remains usable after interrupted install at transaction-published
+PASS install process interruption at after-assembly retains durable journal
+PASS pending install verify is read-only at after-assembly
+PASS next normal run restores pre-install files at after-assembly
+PASS uninstall remains usable after interrupted install at after-assembly
+PASS install process interruption at after-plugin retains durable journal
+PASS pending install verify is read-only at after-plugin
+PASS next normal run restores pre-install files at after-plugin
+PASS uninstall remains usable after interrupted install at after-plugin
+PASS install process interruption at after-manifest retains durable journal
+PASS pending install verify is read-only at after-manifest
+PASS next normal run restores pre-install files at after-manifest
+PASS uninstall remains usable after interrupted install at after-manifest
+PASS update process interruption at transaction-published retains durable journal
+PASS pending update verify is read-only at transaction-published
+PASS next normal run restores pre-update files at transaction-published
+PASS uninstall remains usable after interrupted update at transaction-published
+PASS update process interruption at after-assembly retains durable journal
+PASS pending update verify is read-only at after-assembly
+PASS next normal run restores pre-update files at after-assembly
+PASS uninstall remains usable after interrupted update at after-assembly
+PASS update process interruption at after-plugin retains durable journal
+PASS pending update verify is read-only at after-plugin
+PASS next normal run restores pre-update files at after-plugin
+PASS uninstall remains usable after interrupted update at after-plugin
+PASS update process interruption at after-manifest retains durable journal
+PASS pending update verify is read-only at after-manifest
+PASS next normal run restores pre-update files at after-manifest
+PASS uninstall remains usable after interrupted update at after-manifest
+PASS uninstall process interruption at transaction-published retains durable journal
+PASS pending uninstall verify is read-only at transaction-published
+PASS next normal run restores pre-uninstall files at transaction-published
+PASS uninstall remains usable after interrupted uninstall at transaction-published
+PASS uninstall process interruption at after-assembly retains durable journal
+PASS pending uninstall verify is read-only at after-assembly
+PASS next normal run restores pre-uninstall files at after-assembly
+PASS uninstall remains usable after interrupted uninstall at after-assembly
+PASS uninstall process interruption at after-plugin retains durable journal
+PASS pending uninstall verify is read-only at after-plugin
+PASS next normal run restores pre-uninstall files at after-plugin
+PASS uninstall remains usable after interrupted uninstall at after-plugin
+PASS uninstall process interruption at after-manifest retains durable journal
+PASS pending uninstall verify is read-only at after-manifest
+PASS next normal run restores pre-uninstall files at after-manifest
+PASS uninstall remains usable after interrupted uninstall at after-manifest
+PASS invalid existing backup is never overwritten
+PASS backup for another accepted game version is preserved and blocks install
+PASS missing hook rejects install before changing any target
+PASS missing hook rejects update before changing any target
+PASS unknown game assembly is preserved before backup or patching
+PASS concurrent installer is refused before target changes
+PASS actual plugin file lock during update rolls back already-replaced assembly
+PASS actual plugin file lock during uninstall rolls back already-replaced assembly
+PASS actual assembly lock preventing rollback retains journal and snapshots
+PASS next normal run recovers after rollback file lock is released
+PASS prepare interrupted update for external edit protection
+PASS external edit prevents all automatic recovery writes and retains journal
+PASS prepare interrupted install for snapshot corruption protection
+PASS damaged recovery snapshot stops before changing any target
+PASS recovery may itself be interrupted after restoring assembly
+PASS second recovery still has intact snapshots and restores all targets
+PASS install with multiplier hooks succeeds
+PASS install has exactly 9 hook entries, 16 game methods and 19 calls without stacking
+PASS install preserves native DawnOfMan.PhysicalEntity..ctor
+PASS install preserves native DawnOfMan.PhysicalEntity.countEmptySlots
+PASS install preserves native DawnOfMan.PhysicalEntity.anyEmptySlots
+PASS install preserves native DawnOfMan.AiRuleGoGetDeadBody..ctor
+PASS install preserves native DawnOfMan.AiRuleGoGetDeadBody.run
+PASS install preserves native DawnOfMan.AiRuleGoGetDeadBody.canPerform
+PASS install preserves native DawnOfMan.AiRuleTaskGetTool..ctor
+PASS install preserves native DawnOfMan.AiRuleTaskGetTool.canPerform
+PASS install executes every new hook and preserves body/equipment/native queries
+PASS install verify reports actual hook counts
+PASS update with multiplier hooks succeeds
+PASS update has exactly 9 hook entries, 16 game methods and 19 calls without stacking
+PASS update preserves native DawnOfMan.PhysicalEntity..ctor
+PASS update preserves native DawnOfMan.PhysicalEntity.countEmptySlots
+PASS update preserves native DawnOfMan.PhysicalEntity.anyEmptySlots
+PASS update preserves native DawnOfMan.AiRuleGoGetDeadBody..ctor
+PASS update preserves native DawnOfMan.AiRuleGoGetDeadBody.run
+PASS update preserves native DawnOfMan.AiRuleGoGetDeadBody.canPerform
+PASS update preserves native DawnOfMan.AiRuleTaskGetTool..ctor
+PASS update preserves native DawnOfMan.AiRuleTaskGetTool.canPerform
+PASS update executes every new hook and preserves body/equipment/native queries
+PASS update verify reports actual hook counts
+PASS repeated-update with multiplier hooks succeeds
+PASS repeated-update has exactly 9 hook entries, 16 game methods and 19 calls without stacking
+PASS repeated-update preserves native DawnOfMan.PhysicalEntity..ctor
+PASS repeated-update preserves native DawnOfMan.PhysicalEntity.countEmptySlots
+PASS repeated-update preserves native DawnOfMan.PhysicalEntity.anyEmptySlots
+PASS repeated-update preserves native DawnOfMan.AiRuleGoGetDeadBody..ctor
+PASS repeated-update preserves native DawnOfMan.AiRuleGoGetDeadBody.run
+PASS repeated-update preserves native DawnOfMan.AiRuleGoGetDeadBody.canPerform
+PASS repeated-update preserves native DawnOfMan.AiRuleTaskGetTool..ctor
+PASS repeated-update preserves native DawnOfMan.AiRuleTaskGetTool.canPerform
+PASS repeated-update executes every new hook and preserves body/equipment/native queries
+PASS repeated-update verify reports actual hook counts
+PASS missing new hook PrepareSlot rejects update before writes
+PASS missing new hook ResourceCarrySlots rejects update before writes
+PASS missing new hook ResourceCarrySpace rejects update before writes
+PASS missing new hook NonnegativeSpace rejects update before writes
+PASS missing new hook ScaleBuildWork rejects update before writes
+PASS incompatible capacity field type rejects before backup or game writes
+PASS incompatible readonly slot definition rejects before backup or game writes
+PASS incompatible builder field type rejects before backup or game writes
+PASS incompatible static buildable getter rejects before backup or game writes
+PASS incompatible building work parameter rejects before backup or game writes
+PASS incompatible building inheritance rejects before backup or game writes
+PASS incompatible resource callsite count rejects before backup or game writes
+PASS incompatible enum backing type rejects before backup or game writes
+PASS every native getSpaceLeft return is clamped, including branch and switch paths
+PASS verify derives call count from all injected returns
+PASS missing default game resolves only to installer sibling
+PASS default path resolution never creates or searches a game directory
+PASS existing default sibling keeps the same relative resolution
+PASS explicit parent-relative game resolves from installer directory
+PASS explicit relative dot segments normalize from installer directory
+PASS complete custom absolute game path remains supported
+PASS default and explicit relative paths ignore first caller working directory
+PASS default and explicit relative paths ignore changed caller working directory
+PASS ambiguous drive-relative path is rejected instead of using caller drive state
+PASS ambiguous root-relative path is rejected instead of using caller drive state
+PASS actual default verify finds installer sibling from another directory
+PASS actual default verify is unchanged after changing working directory
+PASS actual relative verify uses installer base instead of caller directory
+PASS actual relative verify is unchanged after changing working directory
+PASS actual absolute custom game verify remains supported
+PASS missing default sibling stops without absolute-drive fallback or game changes
+PASS missing explicit relative game stops without fallback or game changes
+Installer checks: 154 passed, 0 failed. Sandbox: <TEMP_TEST_DIR>\sandboxes

@@ -434,7 +434,7 @@ internal static class UiPreview
     }
     private static void MultiplierUiChecks(UiModel model)
     {
-        Check(model.Version=="1.4.0"&&model.StorageMultiplier==1&&model.BuildMultiplier==1&&model.CarryMultiplier==1&&model.TransportMultiplier==1,"four integer multipliers start at 1x in version 1.4.0");
+        Check(model.Version=="1.4.1"&&model.StorageMultiplier==1&&model.BuildMultiplier==1&&model.CarryMultiplier==1&&model.TransportMultiplier==1,"four integer multipliers start at 1x in version 1.4.1");
         model.Page=8;
         string[] keys={"storage","build","carry","transport"};int[] maximums={10,20,10,10};
         Action<int>[] set={n=>model.StorageMultiplier=n,n=>model.BuildMultiplier=n,n=>model.CarryMultiplier=n,n=>model.TransportMultiplier=n};

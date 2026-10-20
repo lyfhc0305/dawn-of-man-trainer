@@ -13,7 +13,6 @@ internal static class Installer
         "381061C26BA34BA38C95B9F82FA17777BB9CEACA5F07B0BB5AD0A0A0FF46A170",
         "A9AE0E5E6A75CA0BE8E741045BFB57010E9B83C13814396415C256975D867FF3"
     };
-    private const string DefaultGame = @"D:\Program Files (x86)\Steam\steamapps\common\DawnOfMan";
     private static bool IsOriginal(string hash)
     {
 #if INSTALLER_TESTS
@@ -33,10 +32,18 @@ internal static class Installer
         if (TestStep != null) TestStep(name);
 #endif
     }
-    private static string ResolveDefaultGame()
+    internal static string ResolveGamePath(string requestedGame, string installerDirectory)
     {
-        string sibling = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\DawnOfMan"));
-        return Directory.Exists(DefaultGame) || !Directory.Exists(sibling) ? DefaultGame : sibling;
+        string path = requestedGame ?? @"..\DawnOfMan";
+        if (Path.IsPathRooted(path))
+        {
+            // Drive-relative and root-relative Windows paths depend on the caller's
+            // current drive. Require a complete absolute path or a normal relative one.
+            if (Path.GetPathRoot(path).Length < 3)
+                throw new ArgumentException("请使用相对安装器的路径，或包含完整根目录的绝对路径。", "requestedGame");
+            return Path.GetFullPath(path);
+        }
+        return Path.GetFullPath(Path.Combine(installerDirectory, path));
     }
     private static string Hash(string file)
     { using (SHA256 sha = SHA256.Create()) using (FileStream stream = File.OpenRead(file)) return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", ""); }
@@ -412,8 +419,7 @@ internal static class Installer
         Console.OutputEncoding = Encoding.UTF8;
         try
         {
-            string game = args.FirstOrDefault(a => !a.StartsWith("--")) ?? ResolveDefaultGame();
-            game = Path.GetFullPath(game);
+            string game = ResolveGamePath(args.FirstOrDefault(a => !a.StartsWith("--")), AppDomain.CurrentDomain.BaseDirectory);
             string managed = Path.Combine(game, @"DawnOfMan_Data\Managed");
             string assembly = Path.Combine(managed, "Assembly-CSharp.dll");
             string plugin = Path.Combine(managed, "DawnOfManTrainer.dll");

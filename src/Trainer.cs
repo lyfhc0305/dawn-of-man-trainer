@@ -13,7 +13,7 @@ namespace DawnTrainer
     // All game work runs on Unity's main thread. No remote endpoints or injection service.
     public sealed partial class Trainer : MonoBehaviour
     {
-        public const string Version = "1.4.0";
+        public const string Version = "1.4.1";
         private static Trainer instance;
         internal static readonly bool[] Locks = new bool[7];
         private static readonly HashSet<Stat> lockedStats = new HashSet<Stat>();

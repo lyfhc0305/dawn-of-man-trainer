@@ -8,4 +8,4 @@
 *.png binary
 *.dll binary
 # Raw diagnostics preserve the trailing space in an empty-input test case.
-docs/离线检查日志.txt -whitespace
+docs/*离线检查日志.txt -whitespace
