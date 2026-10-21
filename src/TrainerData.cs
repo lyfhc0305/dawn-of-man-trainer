@@ -144,6 +144,17 @@ namespace DawnTrainer
             if (Single.IsNaN(x) || Single.IsInfinity(x)) x = 12;
             if (Single.IsNaN(y) || Single.IsInfinity(y)) y = 12;
         }
+        // F11 expands or collapses the panel; when the panel is hidden it opens it expanded.
+        // Shift+F11 shows or hides the whole panel and keeps whether it was collapsed.
+        internal static void PanelKey(bool shift, ref bool visible, ref bool collapsed)
+        {
+            if (shift) { visible = !visible; return; }
+            if (!visible) { visible = true; collapsed = false; }
+            else collapsed = !collapsed;
+        }
+        // Esc never closes the docked panel, so the game keeps it for deselecting and its menu.
+        // Only while a panel field is being typed in does Esc end the typing, and then the game does not see it.
+        internal static bool EscapeEndsTyping(bool visible, bool typing) { return visible && typing; }
         internal static float NextPauseSpeed(float current, ref float lastRunning)
         {
             if(current>0){lastRunning=current;return 0;}

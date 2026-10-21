@@ -166,8 +166,11 @@ namespace DawnTrainer
                         MultiplierTestLoadUnload(transport, storage, light, baseline, check, id);
                     }
                     ClearMultiplierWorld();
-                    check(storageMultiplier == 1 && carryMultiplier == 1 && transportMultiplier == 1 && buildMultiplier == 1 && multiplierSlots.Count == 0,
-                        "multiplier world clear resets all four controls and discards recorded definitions");
+                    craftMultiplier = dryMultiplier = gatherMultiplier = farmMultiplier = 2;
+                    ClearMultiplierWorld();
+                    check(storageMultiplier == 1 && carryMultiplier == 1 && transportMultiplier == 1 && buildMultiplier == 1 && multiplierSlots.Count == 0 &&
+                        craftMultiplier == 1 && dryMultiplier == 1 && gatherMultiplier == 1 && farmMultiplier == 1,
+                        "multiplier world clear resets all eight controls and discards recorded definitions");
                     check(adult.getContainedAmount(light) == storedBefore && System.Object.ReferenceEquals(multiplierSlotDefinition.GetValue(cargo), definition),
                         "multiplier reset restores original definition identity without losing over-capacity cargo");
                 }, check);
@@ -207,6 +210,29 @@ namespace DawnTrainer
                     nativeWork.Invoke(operation, new object[] { 1f });
                     check(TransientSingleton<KnowledgeManager>.CurrentInstance.getKnownEntities().getAmount(target.getBuildableType()) == knownAfter,
                         "multiplier built target does not duplicate native completion reward");
+                }, check);
+
+                TestGroup("multiplier work speed groups", delegate
+                {
+                    ResetMultipliers();
+                    Human worker = MultiplierTestHuman(Age.Adult, origin + new Vector3(90, 0, 20));
+                    buildMultiplier = 2; craftMultiplier = 3; gatherMultiplier = 4; farmMultiplier = 5;
+                    Type[] build = { typeof(BeingStateRepairing), typeof(BeingStateRecycling) }, craft = { typeof(BeingStateCrafting) };
+                    Type[] gather = { typeof(BeingStateCuttingDown), typeof(BeingStateCollecting), typeof(BeingStateMining), typeof(BeingStateMiningUnderground), typeof(BeingStateGatheringProp),
+                        typeof(BeingStateGatheringDetail), typeof(BeingStateExtractingMud), typeof(BeingStateExtractingWater), typeof(BeingStateFishing) };
+                    Type[] farm = { typeof(BeingStateHarvesting), typeof(BeingStatePlanting), typeof(BeingStatePlowing), typeof(BeingStateMilking), typeof(BeingStateShearing),
+                        typeof(BeingStateTaming), typeof(BeingStateButchering), typeof(BeingStateSlaughtering) };
+                    Type[][] groups = { build, craft, gather, farm }; float[] factors = { 2, 3, 4, 5 };
+                    for (int g = 0; g < groups.Length; g++)
+                        foreach (Type type in groups[g])
+                            check(Math.Abs(ScaleWork(.5f, (BeingState)Activator.CreateInstance(type), worker) - .5f * factors[g]) < .00001f, "multiplier " + type.Name + " uses its work group");
+                    check(ScaleWork(.5f, new BeingStateCooking(), worker) == .5f && ScaleWork(.5f, new BeingStateResting(), worker) == .5f, "multiplier personal needs keep native time");
+                    manager.swapEntityTeam(worker, Team.Nature);
+                    check(ScaleWork(.5f, new BeingStateFishing(), worker) == .5f, "multiplier non-player worker keeps native work");
+                    manager.swapEntityTeam(worker, Team.Player);
+                    dryMultiplier = 6;
+                    Structure rack = MultiplierTestStructure("food_dryer", origin + new Vector3(95, 0, 20), 1), plan = MultiplierTestStructure("food_dryer", origin + new Vector3(100, 0, 20), 0);
+                    check(Math.Abs(ScaleDryWork(.5f, rack) - 3f) < .00001f && ScaleDryWork(.5f, plan) == .5f, "multiplier drying scales only built player racks");
                 }, check);
             }
             finally { ResetMultipliers(); }

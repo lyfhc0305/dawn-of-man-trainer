@@ -220,6 +220,72 @@ internal static class Installer
         il.InsertBefore(original, il.Create(OpCodes.Ldarg_0)); il.InsertBefore(original, il.Create(OpCodes.Ldfld, being));
         il.InsertBefore(original, il.Create(OpCodes.Ldarg_0)); il.InsertBefore(original, il.Create(OpCodes.Call, getBuildable));
         il.InsertBefore(original, il.Create(OpCodes.Call, scale)); il.InsertBefore(original, il.Create(OpCodes.Starg, build.Parameters[0]));
+        WorkHooks(module, mod, being);
+    }
+
+    // Native work progress driven by a timeStep argument: type, method, return type, then the
+    // store or call ("Type::member") that each scaled timeStep load feeds. Other uses of the same
+    // timeStep (evaluation timers, animation, morale) keep native time.
+    internal static readonly string[][] WorkSteps =
+    {
+        new[] { "DawnOfMan.BeingStateRepairing", "increaseBuildingOperation", "System.Void", "RepairingSaveState::RepairAmount" },
+        new[] { "DawnOfMan.BeingStateRecycling", "increaseBuildingOperation", "System.Void", "Buildable::increaseRecycleProgress" },
+        new[] { "DawnOfMan.BeingStateCrafting", "tick", "System.Void", "Structure::increaseRecipeCraftingProgress" },
+        new[] { "DawnOfMan.BeingStateTreeAction", "tick", "System.Void", "TreeActionSaveState::Time" },
+        new[] { "DawnOfMan.BeingStateMining", "tick", "System.Void", "MiningSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateMiningUnderground", "tick", "System.Void", "MiningUndergroundSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateGatheringProp", "tick", "System.Void", "GatheringPropSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateGatheringDetail", "tick", "System.Void", "GatheringSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateExtractingMud", "tick", "System.Void", "ExtractingSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateExtractingWater", "tick", "System.Void", "ExtractingSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStateFishing", "tick", "System.Void", "FishingSaveState::TimeLeft" },
+        new[] { "DawnOfMan.BeingStatePlanting", "tick", "System.Void", "Plant::increasePlantingProgress" },
+        new[] { "DawnOfMan.BeingStatePlowing", "updatePlowing", "System.Boolean", "PlowingSaveState::Progress", "Plant::increasePlantingProgress" },
+        new[] { "DawnOfMan.BeingStateMilking", "tick", "System.Void", "MilkingSaveState::Time" },
+        new[] { "DawnOfMan.BeingStateShearing", "tick", "System.Void", "ShrearingSaveState::Time" },
+        new[] { "DawnOfMan.BeingStateTaming", "tick", "System.Void", "TamingSaveState::Time" },
+        new[] { "DawnOfMan.BeingStateButchering", "tick", "System.Void", "ButcheringSaveState::Time" },
+        new[] { "DawnOfMan.BeingStateSlaughtering", "update", "System.Void", "SlaughteringSaveState::TimeLeft" }
+    };
+
+    // The first field store or non-getter call a timeStep load flows into before any branch.
+    private static string StepTarget(Instruction load)
+    {
+        for (Instruction next = load.Next; next != null; next = next.Next)
+        {
+            FlowControl flow = next.OpCode.FlowControl;
+            if (flow == FlowControl.Branch || flow == FlowControl.Cond_Branch || flow == FlowControl.Return) return null;
+            FieldReference field = next.Operand as FieldReference; MethodReference call = next.Operand as MethodReference;
+            if (next.OpCode == OpCodes.Stfld && field != null) return field.DeclaringType.Name + "::" + field.Name;
+            if ((next.OpCode == OpCodes.Call || next.OpCode == OpCodes.Callvirt) && call != null && !call.Name.StartsWith("get", StringComparison.Ordinal))
+                return call.DeclaringType.Name + "::" + call.Name;
+        }
+        return null;
+    }
+
+    // Rescale exactly one timeStep load per target; the hook leaves the scaled step on the stack.
+    private static void ScaleStep(MethodDefinition method, string target, params Instruction[] hook)
+    {
+        Instruction[] loads = method.Body.Instructions.Where(i => i.OpCode == OpCodes.Ldarg_1 && StepTarget(i) == target).ToArray();
+        if (loads.Length != 1) throw new Exception("工作进度方法结构不匹配：" + method.FullName + "，未修改任何游戏文件。");
+        ILProcessor il = method.Body.GetILProcessor(); Instruction at = loads[0];
+        foreach (Instruction instruction in hook) { il.InsertAfter(at, instruction); at = instruction; }
+    }
+
+    private static void WorkHooks(ModuleDefinition module, ModuleDefinition mod, FieldDefinition being)
+    {
+        MethodReference work = Hook(module, mod, "ScaleWork", "System.Single", "System.Single", "DawnOfMan.BeingState", "DawnOfMan.Being");
+        MethodReference dry = Hook(module, mod, "ScaleDryWork", "System.Single", "System.Single", "DawnOfMan.Structure");
+        MethodDefinition[] methods = WorkSteps.Select(step => CheckedMethod(module, step[0], step[1], step[2], "System.Single")).ToArray();
+        MethodDefinition laborless = CheckedMethod(module, "DawnOfMan.CraftQueue", "updateLaborlessCraftingProgress", "System.Boolean", "System.Single");
+        FieldDefinition rack = CheckedField(module, "DawnOfMan.CraftQueue", "mStructure", "DawnOfMan.Structure");
+        if (WorkSteps.Any(step => !DerivesFrom(module, step[0], "DawnOfMan.BeingState")))
+            throw new Exception("工作状态继承结构不匹配，未修改任何游戏文件。");
+        for (int index = 0; index < methods.Length; index++)
+            foreach (string target in WorkSteps[index].Skip(3))
+                ScaleStep(methods[index], target, Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldarg_0),
+                    Instruction.Create(OpCodes.Ldfld, being), Instruction.Create(OpCodes.Call, work));
+        ScaleStep(laborless, "CraftQueue::increaseRecipeCraftingProgress", Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldfld, rack), Instruction.Create(OpCodes.Call, dry));
     }
 
     private static string HookSummary(ModuleDefinition module)

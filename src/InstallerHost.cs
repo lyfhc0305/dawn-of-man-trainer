@@ -9,8 +9,8 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("人类黎明修改器安装程序")]
 [assembly: AssemblyProduct("Dawn of Man Trainer")]
-[assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.1.0.0")]
+[assembly: AssemblyFileVersion("2.1.0.0")]
 
 internal sealed class InstallerResult
 {
@@ -20,7 +20,7 @@ internal sealed class InstallerResult
 
 internal static class InstallerHost
 {
-    internal const string Version = "2.0.0";
+    internal const string Version = "2.1.0";
     private const string ResourcePrefix = "DawnTrainer.Bundle.";
 
     [DllImport("kernel32.dll", SetLastError = true)]

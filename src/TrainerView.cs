@@ -21,13 +21,14 @@ namespace DawnTrainer
 
     internal sealed partial class UiModel
     {
-        internal string Version = "2.0.0", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
+        internal string Version = "2.1.0", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
         internal string GameVersion = "";
         internal bool Ready, Domestic, BuildHotkey, KillHotkey, GiveHotkey, Busy, StatusError;
         internal bool[] Locks = new bool[7];
         internal int Page, Category, Location, Age = 1, Gender = 2, Knowledge, SelectionCount, BuildTargets, KillTargets;
         internal int ResourceCount, AnimalCount, Done, Total, Weather, SpawnTab;
         internal int StorageMultiplier = 1, BuildMultiplier = 1, CarryMultiplier = 1, TransportMultiplier = 1;
+        internal int CraftMultiplier = 1, DryMultiplier = 1, GatherMultiplier = 1, FarmMultiplier = 1, EfficiencyTab;
         internal float Speed = 1, ResourceScroll, AnimalScroll, ActiveScroll;
         internal string SelectedResource, SelectedAnimal;
         internal string ResourceSearch = "", AnimalSearch = "", SelectionName = "", TaskName = "", CompletedName = "";
@@ -476,11 +477,17 @@ namespace DawnTrainer
             Glyph(c, "logo", X0 + BodyW / 2 - 13, y + 11, 26, Accent, Surface);
             c.Text(R(X0, y + 64, BodyW, 24), "进入地图后开始使用", 16, TextMain, true, 1);
             c.Text(R(X0, y + 92, BodyW, 18), "新建游戏或载入存档，即可管理人物、资源与世界", 12, Muted, false, 1);
-            c.Text(R(X0, y + 114, BodyW, 18), "F11 隐藏此面板，继续游戏", 12, Quiet, false, 1);
+            c.Text(R(X0, y + 114, BodyW, 18), "Shift+F11 隐藏此面板，继续游戏", 12, Quiet, false, 1);
         }
 
         // ---------- active modifications ----------
-        private static bool AnyMultiplier(UiModel m) { return m.StorageMultiplier != 1 || m.BuildMultiplier != 1 || m.CarryMultiplier != 1 || m.TransportMultiplier != 1; }
+        private static bool AnyMultiplier(UiModel m) { return Changed(SpeedMultipliers(m)) + Changed(CapacityMultipliers(m)) > 0; }
+        private static int Changed(int[] values) { int count = 0; foreach (int value in values) if (value != 1) count++; return count; }
+        // Efficiency tab order: work speed, then capacity.
+        private static int[] SpeedMultipliers(UiModel m) { return new int[] { m.BuildMultiplier, m.CraftMultiplier, m.DryMultiplier, m.GatherMultiplier, m.FarmMultiplier }; }
+        private static int[] CapacityMultipliers(UiModel m) { return new int[] { m.StorageMultiplier, m.CarryMultiplier, m.TransportMultiplier }; }
+        private static readonly string[] SpeedKeys = { "build", "craft", "dry", "gather", "farm" }, CapacityKeys = { "storage", "carry", "transport" };
+        private static readonly string[] SpeedNames = { "建造速度", "制作速度", "晾晒速度", "采集速度", "农牧速度" }, CapacityNames = { "仓储容量", "人力搬运", "运输工具容量" };
         // Everything "关闭所有开关" resets, so the list and the footer count describe exactly what reset would change.
         internal static List<string[]> ActiveItems(UiModel m)
         {
@@ -490,10 +497,9 @@ namespace DawnTrainer
             if (m.Ready)
             {
                 if (m.Speed != 1) list.Add(new string[] { "speed", "游戏速度", "", m.Speed == 0 ? "已暂停" : FormatSpeed(m.Speed) });
-                if (m.StorageMultiplier != 1) list.Add(new string[] { "multiplier.storage", "仓储容量", "", m.StorageMultiplier + "×" });
-                if (m.BuildMultiplier != 1) list.Add(new string[] { "multiplier.build", "建造速度", "", m.BuildMultiplier + "×" });
-                if (m.CarryMultiplier != 1) list.Add(new string[] { "multiplier.carry", "人力搬运", "", m.CarryMultiplier + "×" });
-                if (m.TransportMultiplier != 1) list.Add(new string[] { "multiplier.transport", "运输工具容量", "", m.TransportMultiplier + "×" });
+                int[] speeds = SpeedMultipliers(m), capacities = CapacityMultipliers(m);
+                for (int i = 0; i < speeds.Length; i++) if (speeds[i] != 1) list.Add(new string[] { "multiplier." + SpeedKeys[i], SpeedNames[i], "", speeds[i] + "×" });
+                for (int i = 0; i < capacities.Length; i++) if (capacities[i] != 1) list.Add(new string[] { "multiplier." + CapacityKeys[i], CapacityNames[i], "", capacities[i] + "×" });
             }
             if (m.BuildHotkey) list.Add(new string[] { "hotkey.build", "快捷键 " + KeyName(m.Preferences.Keys[0]), "快速完成建造", "" });
             if (m.KillHotkey) list.Add(new string[] { "hotkey.kill", "快捷键 " + KeyName(m.Preferences.Keys[1]), "杀死选中单位", "" });
@@ -786,9 +792,9 @@ namespace DawnTrainer
         private static void DrawHelp(UiCanvas c, UiModel m)
         {
             Section(c, BodyY, "键盘操作", null, null, false);
-            string[] keys = { "F11", "Esc", KeyName(m.Preferences.Keys[0]), KeyName(m.Preferences.Keys[1]), KeyName(m.Preferences.Keys[2]) };
-            string[] labels = { "显示或隐藏修改器", "关闭面板", "快速完成建造 · 在设置页启用", "杀死选中单位 · 在设置页启用", "重复添加资源 · 在设置页启用" };
-            for (int i = 0; i < 5; i++) { float y = 118 + i * 32; Key(c, R(X0, y + 4, 48, 22), Short(c, keys[i], 44, 12)); c.Text(R(X0 + 60, y, BodyW - 60, 30), labels[i], 13, TextMain, false, 0); }
+            string[] keys = { "F11", "Shift+F11", KeyName(m.Preferences.Keys[0]), KeyName(m.Preferences.Keys[1]), KeyName(m.Preferences.Keys[2]) };
+            string[] labels = { "展开或收起面板，隐藏时直接打开", "显示或隐藏修改器", "快速完成建造 · 在设置页启用", "杀死选中单位 · 在设置页启用", "重复添加资源 · 在设置页启用" };
+            for (int i = 0; i < 5; i++) { float y = 118 + i * 32; Key(c, R(X0, y + 4, 70, 22), Short(c, keys[i], 66, 12)); c.Text(R(X0 + 82, y, BodyW - 82, 30), labels[i], 13, TextMain, false, 0); }
             Section(c, 288, "添加资源", null, null, false);
             string[] steps = { "搜索名称或英文 ID，点击物品卡片", "填写数量，选择生成位置", "点击添加，再由村民搬运入库" };
             for (int i = 0; i < 3; i++)

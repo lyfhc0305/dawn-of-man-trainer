@@ -189,6 +189,70 @@ internal static class InstallerChecks
         Body(increase, Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldarg_1), Instruction.Create(OpCodes.Stfld, nativeWork),
             Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Dup), Instruction.Create(OpCodes.Ldfld, nativeCalls), Instruction.Create(OpCodes.Ldc_I4_1),
             Instruction.Create(OpCodes.Add), Instruction.Create(OpCodes.Stfld, nativeCalls), Instruction.Create(OpCodes.Ret));
+        BuildWorkGame(module, state, stateConstructor);
+    }
+
+    private static TypeDefinition WorkOwner(ModuleDefinition module, string name)
+    {
+        TypeDefinition type = module.GetType("DawnOfMan." + name);
+        if (type == null) { type = AddType(module, "DawnOfMan." + name); AddConstructor(module, type, null); }
+        return type;
+    }
+
+    private static void InitField(ModuleDefinition module, MethodDefinition constructor, FieldDefinition field)
+    {
+        ILProcessor ctor = constructor.Body.GetILProcessor(); Instruction last = constructor.Body.Instructions.Last();
+        ctor.InsertBefore(last, Instruction.Create(OpCodes.Ldarg_0));
+        ctor.InsertBefore(last, Instruction.Create(OpCodes.Newobj, ((TypeDefinition)field.FieldType).Methods.Single(method => method.IsConstructor && !method.IsStatic)));
+        ctor.InsertBefore(last, Instruction.Create(OpCodes.Stfld, field));
+    }
+
+    // One native method per Installer.WorkSteps entry. Each target receives the timeStep: a field
+    // on a per-target save object ("Native" + owner) or a static "<call>Step" written by the call.
+    // A decoy EvaluationTimer store reads the same timeStep and must keep native time.
+    private static void BuildWorkGame(ModuleDefinition module, TypeDefinition state, MethodDefinition stateConstructor)
+    {
+        foreach (string[] step in Installer.WorkSteps)
+        {
+            TypeDefinition type = AddType(module, step[0]); type.BaseType = state;
+            MethodDefinition constructor = AddConstructor(module, type, stateConstructor);
+            FieldDefinition decoy = AddField(type, "EvaluationTimer", module.TypeSystem.Single, FieldAttributes.Public);
+            MethodDefinition method = AddMethod(module, type, step[1], step[2] == "System.Boolean", module.TypeSystem.Single);
+            List<Instruction> body = new List<Instruction> { Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldarg_1), Instruction.Create(OpCodes.Stfld, decoy) };
+            foreach (string target in step.Skip(3))
+            {
+                string[] parts = target.Split(new[] { "::" }, StringSplitOptions.None);
+                TypeDefinition owner = WorkOwner(module, parts[0]);
+                if (parts[1].StartsWith("increase", StringComparison.Ordinal))
+                {
+                    MethodDefinition call = owner.Methods.SingleOrDefault(candidate => candidate.Name == parts[1]);
+                    if (call == null)
+                    {
+                        FieldDefinition native = AddField(owner, parts[1] + "Step", module.TypeSystem.Single, FieldAttributes.Public | FieldAttributes.Static);
+                        call = new MethodDefinition(parts[1], MethodAttributes.Public | MethodAttributes.Static, module.TypeSystem.Void);
+                        call.Parameters.Add(new ParameterDefinition(module.TypeSystem.Single)); owner.Methods.Add(call);
+                        Body(call, Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Stsfld, native), Instruction.Create(OpCodes.Ret));
+                    }
+                    body.Add(Instruction.Create(OpCodes.Ldarg_1)); body.Add(Instruction.Create(OpCodes.Call, call));
+                }
+                else
+                {
+                    FieldDefinition field = owner.Fields.SingleOrDefault(candidate => candidate.Name == parts[1]) ?? AddField(owner, parts[1], module.TypeSystem.Single, FieldAttributes.Public);
+                    FieldDefinition save = AddField(type, "Native" + parts[0], owner, FieldAttributes.Public); InitField(module, constructor, save);
+                    body.Add(Instruction.Create(OpCodes.Ldarg_0)); body.Add(Instruction.Create(OpCodes.Ldfld, save));
+                    body.Add(Instruction.Create(OpCodes.Ldarg_1)); body.Add(Instruction.Create(OpCodes.Stfld, field));
+                }
+            }
+            if (step[2] == "System.Boolean") body.Add(Instruction.Create(OpCodes.Ldc_I4_1));
+            body.Add(Instruction.Create(OpCodes.Ret)); Body(method, body.ToArray());
+        }
+        TypeDefinition structure = WorkOwner(module, "Structure"), queue = AddType(module, "DawnOfMan.CraftQueue");
+        FieldDefinition rack = AddField(queue, "mStructure", structure, FieldAttributes.Private), crafted = AddField(queue, "NativeStep", module.TypeSystem.Single, FieldAttributes.Public);
+        InitField(module, AddConstructor(module, queue, null), rack);
+        MethodDefinition progress = AddMethod(module, queue, "increaseRecipeCraftingProgress", true, module.TypeSystem.Single);
+        Body(progress, Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldarg_1), Instruction.Create(OpCodes.Stfld, crafted), Instruction.Create(OpCodes.Ldc_I4_1), Instruction.Create(OpCodes.Ret));
+        MethodDefinition laborless = AddMethod(module, queue, "updateLaborlessCraftingProgress", true, module.TypeSystem.Single);
+        Body(laborless, Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldarg_1), Instruction.Create(OpCodes.Call, progress), Instruction.Create(OpCodes.Ret));
     }
 
     private static MethodDefinition HookMethod(ModuleDefinition module, TypeDefinition trainer, string name, TypeReference returns, params TypeReference[] parameters)
@@ -233,6 +297,19 @@ internal static class InstallerChecks
         scale.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_2)); scale.Body.Instructions.Add(Instruction.Create(OpCodes.Stsfld, lastTarget));
         scale.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0)); scale.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 4f));
         scale.Body.Instructions.Add(Instruction.Create(OpCodes.Mul)); scale.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+        TypeReference state = module.ImportReference(game.GetType("DawnOfMan.BeingState")), being = module.ImportReference(game.GetType("DawnOfMan.Being"));
+        TypeReference structure = module.ImportReference(game.GetType("DawnOfMan.Structure"));
+        MethodDefinition work = HookMethod(module, trainer, "ScaleWork", module.TypeSystem.Single, module.TypeSystem.Single, state, being); HookCounter(module, trainer, work, "WorkCalls");
+        FieldDefinition lastState = AddField(trainer, "LastState", state, FieldAttributes.Public | FieldAttributes.Static), lastBeing = AddField(trainer, "LastBeing", being, FieldAttributes.Public | FieldAttributes.Static);
+        work.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_1)); work.Body.Instructions.Add(Instruction.Create(OpCodes.Stsfld, lastState));
+        work.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_2)); work.Body.Instructions.Add(Instruction.Create(OpCodes.Stsfld, lastBeing));
+        work.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0)); work.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 3f));
+        work.Body.Instructions.Add(Instruction.Create(OpCodes.Mul)); work.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+        MethodDefinition dry = HookMethod(module, trainer, "ScaleDryWork", module.TypeSystem.Single, module.TypeSystem.Single, structure); HookCounter(module, trainer, dry, "DryCalls");
+        FieldDefinition lastRack = AddField(trainer, "LastRack", structure, FieldAttributes.Public | FieldAttributes.Static);
+        dry.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_1)); dry.Body.Instructions.Add(Instruction.Create(OpCodes.Stsfld, lastRack));
+        dry.Body.Instructions.Add(Instruction.Create(OpCodes.Ldarg_0)); dry.Body.Instructions.Add(Instruction.Create(OpCodes.Ldc_R4, 5f));
+        dry.Body.Instructions.Add(Instruction.Create(OpCodes.Mul)); dry.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
     }
 
     private static TypeDefinition AddType(ModuleDefinition module, string fullName)
@@ -605,6 +682,28 @@ internal static class InstallerChecks
             increase.Invoke(state, new object[] { 1f });
             Check((float)building.GetField("NativeWork").GetValue(state) == 4f && (int)building.GetField("NativeCalls").GetValue(state) == 2 &&
                 (int)trainer.GetField("ScaleCalls").GetValue(null) == 2, "repeated building call does not multiply through duplicate hooks");
+            foreach (string[] step in Installer.WorkSteps)
+            {
+                Type type = game.GetType(step[0]); object work = Activator.CreateInstance(type);
+                string[][] targets = step.Skip(3).Select(target => target.Split(new[] { "::" }, StringSplitOptions.None)).ToArray();
+                foreach (string[] target in targets.Where(target => target[1].StartsWith("increase", StringComparison.Ordinal)))
+                    game.GetType("DawnOfMan." + target[0]).GetField(target[1] + "Step").SetValue(null, 0f);
+                int before = (int)trainer.GetField("WorkCalls").GetValue(null);
+                type.GetMethod(step[1]).Invoke(work, new object[] { 2f });
+                bool scaled = targets.All(target =>
+                {
+                    if (target[1].StartsWith("increase", StringComparison.Ordinal)) return (float)game.GetType("DawnOfMan." + target[0]).GetField(target[1] + "Step").GetValue(null) == 6f;
+                    object save = type.GetField("Native" + target[0]).GetValue(work); return (float)save.GetType().GetField(target[1]).GetValue(save) == 6f;
+                });
+                Check(scaled && (float)type.GetField("EvaluationTimer").GetValue(work) == 2f && (int)trainer.GetField("WorkCalls").GetValue(null) == before + targets.Length &&
+                    Object.ReferenceEquals(trainer.GetField("LastState").GetValue(null), work) && trainer.GetField("LastBeing").GetValue(null).GetType().FullName == "DawnOfMan.Being",
+                    "work step " + type.Name + "." + step[1] + " scales its progress with the real state and performer, and keeps other timers native");
+            }
+            Type queueType = game.GetType("DawnOfMan.CraftQueue"); object queue = Activator.CreateInstance(queueType);
+            Check((bool)queueType.GetMethod("updateLaborlessCraftingProgress").Invoke(queue, new object[] { 2f }) && (float)queueType.GetField("NativeStep").GetValue(queue) == 10f &&
+                (int)trainer.GetField("DryCalls").GetValue(null) == 1 && (int)trainer.GetField("WorkCalls").GetValue(null) == Installer.WorkSteps.Sum(step => step.Length - 3) &&
+                Object.ReferenceEquals(trainer.GetField("LastRack").GetValue(null), queueType.GetField("mStructure", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(queue)),
+                "laborless drying scales with its own rack and keeps the native result");
         }
         catch (Exception exception) { failed++; Console.WriteLine("FAIL executable hook test: " + exception); }
         Console.WriteLine("Executable hook checks: " + passed + " passed, " + failed + " failed.");
@@ -627,19 +726,20 @@ internal static class InstallerChecks
                 })).ToArray();
                 MethodReference[] calls = hooked.SelectMany(method => method.Body.Instructions).Select(instruction => instruction.Operand as MethodReference)
                     .Where(call => call != null && call.DeclaringType.FullName == "DawnTrainer.Trainer").ToArray();
-                Check(hooked.Length == 16 && calls.Length == 19 && calls.Select(call => call.Name).Distinct().Count() == 9 &&
+                Check(hooked.Length == 35 && calls.Length == 39 && calls.Select(call => call.Name).Distinct().Count() == 11 &&
                     calls.Count(call => call.Name == "PrepareSlot") == 4 && calls.Count(call => call.Name == "ResourceCarrySlots") == 4 &&
-                    calls.Count(call => call.Name == "ResourceCarrySpace") == 1 && calls.Count(call => call.Name == "NonnegativeSpace") == 1 && calls.Count(call => call.Name == "ScaleBuildWork") == 1,
-                    phase + " has exactly 9 hook entries, 16 game methods and 19 calls without stacking");
+                    calls.Count(call => call.Name == "ResourceCarrySpace") == 1 && calls.Count(call => call.Name == "NonnegativeSpace") == 1 && calls.Count(call => call.Name == "ScaleBuildWork") == 1 &&
+                    calls.Count(call => call.Name == "ScaleWork") == 19 && calls.Count(call => call.Name == "ScaleDryWork") == 1,
+                    phase + " has exactly 11 hook entries, 35 game methods and 39 calls without stacking");
                 foreach (string name in new[] { "DawnOfMan.PhysicalEntity", "DawnOfMan.AiRuleGoGetDeadBody", "DawnOfMan.AiRuleTaskGetTool" })
                     foreach (MethodDefinition method in clean.MainModule.GetType(name).Methods.Where(method => method.HasBody))
                         Check(MethodShape(game.MainModule.GetType(name).Methods.Single(candidate => candidate.Name == method.Name)) == MethodShape(method), phase + " preserves native " + name + "." + method.Name);
             }
             Check(ExecuteHooks(fixture) == 0, phase + " executes every new hook and preserves body/equipment/native queries");
-            Check(Run(fixture, bundle, "--verify") == 0 && output.Contains("9 个挂接入口、16 个游戏方法、19 处挂接调用"), phase + " verify reports actual hook counts");
+            Check(Run(fixture, bundle, "--verify") == 0 && output.Contains("11 个挂接入口、35 个游戏方法、39 处挂接调用"), phase + " verify reports actual hook counts");
         }
 
-        foreach (string name in new[] { "PrepareSlot", "ResourceCarrySlots", "ResourceCarrySpace", "NonnegativeSpace", "ScaleBuildWork" })
+        foreach (string name in new[] { "PrepareSlot", "ResourceCarrySlots", "ResourceCarrySpace", "NonnegativeSpace", "ScaleBuildWork", "ScaleWork", "ScaleDryWork" })
         {
             string invalidBundle = Path.Combine(work, "missing-" + name); Directory.CreateDirectory(invalidBundle);
             using (AssemblyDefinition mod = AssemblyDefinition.ReadAssembly(Path.Combine(bundle2, "DawnOfManTrainer.dll")))
@@ -651,7 +751,8 @@ internal static class InstallerChecks
             Check(Run(fixture, invalidBundle) == 1 && fixture.Snapshot() == before && !Directory.Exists(fixture.Transaction), "missing new hook " + name + " rejects update before writes");
         }
 
-        string[] labels = { "capacity field type", "readonly slot definition", "builder field type", "static buildable getter", "building work parameter", "building inheritance", "resource callsite count", "enum backing type" };
+        string[] labels = { "capacity field type", "readonly slot definition", "builder field type", "static buildable getter", "building work parameter", "building inheritance", "resource callsite count", "enum backing type",
+            "work progress target", "duplicate work progress", "work state inheritance", "drying rack field type", "work step return type" };
         Action<ModuleDefinition>[] mutations =
         {
             delegate(ModuleDefinition module) { module.GetType("DawnOfMan.SlotDefinition").Fields.Single(field => field.Name == "Capacity").FieldType = module.TypeSystem.Single; },
@@ -666,7 +767,19 @@ internal static class InstallerChecks
                     instruction.Operand is MethodReference && ((MethodReference)instruction.Operand).Name == "countEmptySlots");
                 call.OpCode = OpCodes.Nop; call.Operand = null;
             },
-            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.SlotType").Fields.Single(field => field.Name == "value__").FieldType = module.TypeSystem.Int64; }
+            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.SlotType").Fields.Single(field => field.Name == "value__").FieldType = module.TypeSystem.Int64; },
+            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.FishingSaveState").Fields.Single(field => field.Name == "TimeLeft").Name = "Remaining"; },
+            delegate(ModuleDefinition module)
+            {
+                MethodDefinition tick = module.GetType("DawnOfMan.BeingStateTaming").Methods.Single(method => method.Name == "tick");
+                Instruction[] store = tick.Body.Instructions.Skip(3).Take(4).ToArray(); ILProcessor il = tick.Body.GetILProcessor(); Instruction ret = tick.Body.Instructions.Last();
+                // A second Time store fed by the same timeStep makes the target ambiguous.
+                foreach (Instruction instruction in store)
+                    il.InsertBefore(ret, instruction.Operand == null ? Instruction.Create(instruction.OpCode) : Instruction.Create(instruction.OpCode, (FieldReference)instruction.Operand));
+            },
+            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.BeingStateMining").BaseType = module.TypeSystem.Object; },
+            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.CraftQueue").Fields.Single(field => field.Name == "mStructure").FieldType = module.TypeSystem.Object; },
+            delegate(ModuleDefinition module) { module.GetType("DawnOfMan.BeingStatePlowing").Methods.Single(method => method.Name == "updatePlowing").ReturnType = module.TypeSystem.Void; }
         };
         for (int index = 0; index < mutations.Length; index++)
         {
@@ -691,7 +804,7 @@ internal static class InstallerChecks
         }
         string multiHash = Hash(multipleReturns.Assembly); Installer.TestOriginalHash = delegate(string hash) { return hash == multiHash; };
         Check(Run(multipleReturns, bundle1) == 0 && ExecuteHooks(multipleReturns) == 0, "every native getSpaceLeft return is clamped, including branch and switch paths");
-        Check(Run(multipleReturns, bundle1, "--verify") == 0 && output.Contains("9 个挂接入口、16 个游戏方法、20 处挂接调用"), "verify derives call count from all injected returns");
+        Check(Run(multipleReturns, bundle1, "--verify") == 0 && output.Contains("11 个挂接入口、35 个游戏方法、40 处挂接调用"), "verify derives call count from all injected returns");
         Configure(bundle1);
     }
 

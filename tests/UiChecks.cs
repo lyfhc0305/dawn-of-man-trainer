@@ -195,7 +195,15 @@ internal static class UiChecks
         }
         model.Preferences.Collapsed = false;
         model.Page = TrainerView.PageSettings;
-        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text.Contains("Dawn of Man 1.8.3")) && !c.Texts.Any(t => t.Text.Contains("1.8.4")) && c.Texts.Any(t => t.Text.Contains("v2.0.0")), "settings show the supplied game version and the trainer version");
+        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text.Contains("Dawn of Man 1.8.3")) && !c.Texts.Any(t => t.Text.Contains("1.8.4")) && c.Texts.Any(t => t.Text.Contains("v2.1.0")), "settings show the supplied game version and the trainer version");
+        model.Page = TrainerView.PageHelp;
+        using (CheckCanvas c = Render(model))
+        {
+            Check(c.Texts.Any(t => t.Text == "F11") && c.Texts.Any(t => t.Text == "展开或收起面板，隐藏时直接打开") && c.Texts.Any(t => t.Text == "Shift+F11") && c.Texts.Any(t => t.Text == "显示或隐藏修改器"), "help lists F11 for expanding and collapsing and Shift+F11 for showing and hiding");
+            Check(!c.Texts.Any(t => t.Text == "Esc" || t.Text == "关闭面板"), "help no longer promises that Esc closes the panel");
+        }
+        model.Page = TrainerView.PageSettings;
+        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text == "展开 / 收起面板") && c.Texts.Any(t => t.Text == "固定键位；Shift+F11 显示或隐藏"), "settings name F11 for expanding and the fixed Shift+F11 for showing and hiding");
         model.Page = TrainerView.PageHome; model.Speed = .25f;
         using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text == "0.25×") && !c.Texts.Any(t => t.Text == "0.3×"), "active list preserves exact quarter-speed precision");
         model.AutoPauseActive = true;
@@ -249,7 +257,7 @@ internal static class UiChecks
         // Footer count and active list describe exactly what reset turns off.
         model.StorageMultiplier = 5; model.BuildMultiplier = 10; model.Speed = 2; model.KillHotkey = true;
         List<string[]> items = TrainerView.ActiveItems(model);
-        Check(items.Count == 6 && items.Select(i => i[0]).SequenceEqual(new[] { "lock.0", "lock.4", "speed", "multiplier.storage", "multiplier.build", "hotkey.kill" }), "active list holds locks, speed, multipliers and enabled hotkeys in a stable order");
+        Check(items.Count == 6 && items.Select(i => i[0]).SequenceEqual(new[] { "lock.0", "lock.4", "speed", "multiplier.build", "multiplier.storage", "hotkey.kill" }), "active list holds locks, speed, multipliers and enabled hotkeys in a stable order");
         using (CheckCanvas c = Render(model))
         {
             Check(c.Texts.Any(t => t.Text == "6 项生效") && c.Texts.Any(t => t.Text == "正在生效 · 6 项"), "footer and home page agree on the active modification count");
@@ -533,26 +541,43 @@ internal static class UiChecks
 
     private static void MultiplierUiChecks(UiModel model)
     {
-        Check(model.Version == "2.0.0" && model.StorageMultiplier == 1 && model.BuildMultiplier == 1 && model.CarryMultiplier == 1 && model.TransportMultiplier == 1, "four integer multipliers start at 1x in version 2.0.0");
+        Check(model.Version == "2.1.0" && model.StorageMultiplier == 1 && model.BuildMultiplier == 1 && model.CarryMultiplier == 1 && model.TransportMultiplier == 1 &&
+            model.CraftMultiplier == 1 && model.DryMultiplier == 1 && model.GatherMultiplier == 1 && model.FarmMultiplier == 1 && model.EfficiencyTab == 0, "eight integer multipliers start at 1x on the speed tab in version 2.1.0");
         model.Page = TrainerView.PageEfficiency;
-        string[] keys = { "storage", "build", "carry", "transport" }; int[] maximums = { 10, 20, 10, 10 };
-        Action<int>[] set = { n => model.StorageMultiplier = n, n => model.BuildMultiplier = n, n => model.CarryMultiplier = n, n => model.TransportMultiplier = n };
-        Func<int>[] get = { () => model.StorageMultiplier, () => model.BuildMultiplier, () => model.CarryMultiplier, () => model.TransportMultiplier };
+        // Speed tab first (index 0-4), then capacity tab (5-7).
+        string[] keys = { "build", "craft", "dry", "gather", "farm", "storage", "carry", "transport" }; int[] maximums = { 20, 20, 20, 20, 20, 10, 10, 10 };
+        Action<int>[] set = { n => model.BuildMultiplier = n, n => model.CraftMultiplier = n, n => model.DryMultiplier = n, n => model.GatherMultiplier = n, n => model.FarmMultiplier = n,
+            n => model.StorageMultiplier = n, n => model.CarryMultiplier = n, n => model.TransportMultiplier = n };
+        Func<int>[] get = { () => model.BuildMultiplier, () => model.CraftMultiplier, () => model.DryMultiplier, () => model.GatherMultiplier, () => model.FarmMultiplier,
+            () => model.StorageMultiplier, () => model.CarryMultiplier, () => model.TransportMultiplier };
+        Func<int, int> tabOf = i => i < 5 ? 0 : 1;
         List<string> actions = new List<string>(); model.Action = (a, v) => actions.Add(a + ":" + v);
         using (CheckCanvas c = Render(model))
         {
             Check(c.Hits.Where(h => h.Id.StartsWith("nav.", StringComparison.Ordinal)).Select(h => h.Id).SequenceEqual(new[] { "nav.0", "nav.1", "nav.2", "nav.3", "nav.4", "nav.5", "nav.6" }), "rail lists the six pages in order, then help");
-            Check(ValueTexts(c).Count(t => t.Text == "1×") == 4, "each multiplier displays its current integer value");
-            Check(c.Texts.Any(t => t.Text.Contains("不含露天堆场")) && c.Texts.Any(t => t.Text.Contains("材料交付与搬运照常")) && c.Texts.Any(t => t.Text.Contains("儿童与重物不变")) && c.Texts.Any(t => t.Text.Contains("仅拖板与拖车")) && c.Texts.Any(t => t.Text.Contains("保留现货")), "efficiency page explains each scope and retains stock when capacity decreases");
-            Check(TrainerView.PanelHeight(false) == 620 && TrainerView.PanelWidth(false) == 400, "every page shares the same 400x620 drawer");
-            Check(c.Hits.Count(h => h.Id.Contains("multiplier.")) == 12 && c.Hits.Where(h => h.Id.Contains("multiplier.")).All(h => h.Rect.H >= 28), "each multiplier has exactly a slider and two steppers, all at least 28 units tall");
-            Check(c.Texts.Count(t => t.Text == "1×" && t.Rect.H == 14) == 4 && c.Texts.Count(t => t.Text == "10×" && t.Rect.H == 14) == 3 && c.Texts.Count(t => t.Text == "20×" && t.Rect.H == 14) == 1, "every slider labels both ends of its range");
+            Check(c.Hits.Any(h => h.Id == "efficiency.tab.0") && c.Hits.Any(h => h.Id == "efficiency.tab.1") && c.Texts.Any(t => t.Text == "速度") && c.Texts.Any(t => t.Text == "容量"), "efficiency page splits into speed and capacity tabs");
+            Check(ValueTexts(c).Count(t => t.Text == "1×") == 5, "each speed multiplier displays its current integer value");
+            Check(c.Texts.Any(t => t.Text.Contains("建造、修理与拆解")) && c.Texts.Any(t => t.Text.Contains("冶炼")) && c.Texts.Any(t => t.Text.Contains("腌肉、干鱼与干皮")) &&
+                c.Texts.Any(t => t.Text.Contains("砍伐、收获、采掘、捕鱼")) && c.Texts.Any(t => t.Text.Contains("挤奶、剪毛、驯服与屠宰")) && c.Texts.Any(t => t.Text.Contains("原料消耗、产出与奖励不变")),
+                "speed tab names every hooked kind of work and says only progress speeds up");
+            Check(c.Hits.Count(h => h.Id.Contains("multiplier.")) == 15 && c.Hits.Where(h => h.Id.Contains("multiplier.")).All(h => h.Rect.H >= 28), "each speed multiplier has exactly a slider and two steppers, all at least 28 units tall");
+            Check(c.Texts.Count(t => t.Text == "最高 20×") == 5, "every speed multiplier states its ceiling");
             Check(c.Hits.Where(h => h.Id.StartsWith("slider.multiplier.", StringComparison.Ordinal)).All(h => h.Rect.W == 236) && !Overlaps(c.Hits), "integer sliders share their visible track width and do not overlap neighboring controls");
+            Check(c.Texts.Where(t => t.Rect.Y >= 90 && t.Rect.Y < Height - 40).All(t => t.Rect.Y + t.Rect.H <= Height - 40 + .1f), "five speed blocks and the footnote fit above the footer");
             Check(c.Hits.Any(h => h.Id == "efficiency.reset" && !h.Enabled), "reset-all link is disabled while every multiplier is 1x");
+        }
+        using (CheckCanvas c = Render(model, "efficiency.tab.1"))
+            Check(model.EfficiencyTab == 1 && actions.Count == 0, "the capacity tab is a view switch, not a game action");
+        using (CheckCanvas c = Render(model))
+        {
+            Check(ValueTexts(c).Count(t => t.Text == "1×") == 3 && c.Hits.Count(h => h.Id.Contains("multiplier.")) == 9 && !Overlaps(c.Hits), "capacity tab shows its three multipliers");
+            Check(c.Texts.Any(t => t.Text.Contains("不含露天堆场")) && c.Texts.Any(t => t.Text.Contains("儿童与重物不变")) && c.Texts.Any(t => t.Text.Contains("仅拖板与拖车")) && c.Texts.Any(t => t.Text.Contains("保留现货")), "capacity tab explains each scope and retains stock when capacity decreases");
+            Check(c.Texts.Count(t => t.Text == "最高 10×") == 3, "every capacity multiplier states its ceiling");
+            Check(TrainerView.PanelHeight(false) == 620 && TrainerView.PanelWidth(false) == 400, "every page shares the same 400x620 drawer");
         }
         for (int i = 0; i < keys.Length; i++)
         {
-            string id = "multiplier." + keys[i]; int index = i;
+            string id = "multiplier." + keys[i]; int index = i; model.EfficiencyTab = tabOf(i);
             set[index](1); actions.Clear();
             using (CheckCanvas c = Render(model, id + ".minus")) Check(get[index]() == 1 && actions.Count == 0 && c.Hits.Any(h => h.Id == id + ".minus" && !h.Enabled), keys[i] + " multiplier cannot go below one");
             set[index](maximums[index]); actions.Clear();
@@ -562,6 +587,10 @@ internal static class UiChecks
             actions.Clear();
             using (CheckCanvas c = Render(model, id + ".minus")) Check(get[index]() == 7 && actions.SequenceEqual(new[] { id + ":7" }), keys[i] + " minus decrements by exactly one and emits an integer");
             using (CheckCanvas c = Render(model)) Check(!c.Hits.Any(h => h.Id == id + ".1" || h.Id == id + ".10"), keys[i] + " has no preset buttons beside its slider");
+            model.EfficiencyTab = 1 - tabOf(i);
+            using (CheckCanvas c = Render(model)) Check(!c.Hits.Any(h => h.Id.StartsWith(id + ".", StringComparison.Ordinal) || h.Id == "slider." + id + ".slider"), keys[i] + " is drawn only on its own tab");
+            using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text == "速度" || t.Text == "容量") && c.Texts.Any(t => t.Text == "1"), keys[i] + " counts toward its tab badge while viewing the other tab");
+            model.EfficiencyTab = tabOf(i);
             float[] rawValues = { 4.49f, 4.5f, -10, maximums[index] + 10, Single.MaxValue }; int[] expected = { 4, 5, 1, maximums[index], maximums[index] };
             for (int sample = 0; sample < rawValues.Length; sample++)
             {
@@ -576,17 +605,20 @@ internal static class UiChecks
                 using (CheckCanvas c = Render(model, null, x => x.NextSliders[id + ".slider"] = value))
                     Check(get[index]() == 7 && actions.Count == 0, keys[i] + " slider ignores unchanged or nonfinite input " + raw.ToString(CultureInfo.InvariantCulture));
             }
+            set[index](1);
         }
-        model.StorageMultiplier = 5; model.BuildMultiplier = 1; model.CarryMultiplier = 2; model.TransportMultiplier = 1; actions.Clear();
-        using (CheckCanvas c = Render(model, "efficiency.reset")) Check(actions.SequenceEqual(new[] { "multiplier.storage:1", "multiplier.carry:1" }) && model.StorageMultiplier == 1 && model.CarryMultiplier == 1, "reset-all restores only the multipliers that changed");
+        model.EfficiencyTab = 0; model.BuildMultiplier = 1; model.GatherMultiplier = 3; model.StorageMultiplier = 5; model.CarryMultiplier = 2; actions.Clear();
+        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text == "1") && c.Texts.Any(t => t.Text == "2"), "tab badges count the changed multipliers on each tab");
+        using (CheckCanvas c = Render(model, "efficiency.reset")) Check(actions.SequenceEqual(new[] { "multiplier.gather:1", "multiplier.storage:1", "multiplier.carry:1" }) && model.GatherMultiplier == 1 && model.StorageMultiplier == 1 && model.CarryMultiplier == 1, "reset-all restores only the multipliers that changed, on both tabs");
         model.Ready = false;
         for (int i = 0; i < keys.Length; i++)
         {
-            set[i](5); actions.Clear(); string key = keys[i];
+            set[i](5); actions.Clear(); string key = keys[i]; model.EfficiencyTab = tabOf(i);
             using (CheckCanvas c = Render(model, "multiplier." + key + ".plus", x => x.NextSliders["multiplier." + key + ".slider"] = 9.5f))
-                Check(get[i]() == 5 && actions.Count == 0 && c.Hits.Count(h => h.Id.Contains("multiplier.")) == 12 && c.Hits.Where(h => h.Id.Contains("multiplier.")).All(h => !h.Enabled) && c.SliderCalls.Count == 0, keys[i] + " and every multiplier control are disabled without a map");
+                Check(get[i]() == 5 && actions.Count == 0 && c.Hits.Count(h => h.Id.Contains("multiplier.")) == (i < 5 ? 15 : 9) && c.Hits.Where(h => h.Id.Contains("multiplier.")).All(h => !h.Enabled) && c.SliderCalls.Count == 0, keys[i] + " and every multiplier control are disabled without a map");
+            set[i](1);
         }
-        model.Ready = true; model.Action = null;
+        model.Ready = true; model.Action = null; model.EfficiencyTab = 0;
     }
 
     // Named states rendered by every exporter, so Windows PNGs and SVG previews show the same screens.
@@ -606,7 +638,8 @@ internal static class UiChecks
         add("05-生成-动物", m => { m.Page = TrainerView.PageSpawn; m.SpawnTab = 1; });
         add("06-生成-物资包", m => { m.Page = TrainerView.PageSpawn; m.SpawnTab = 2; });
         add("07-世界控制", m => m.Page = TrainerView.PageWorld);
-        add("08-效率倍率", m => { m.Page = TrainerView.PageEfficiency; m.Status = "建造速度已设为 10×"; });
+        add("08-效率倍率", m => { m.Page = TrainerView.PageEfficiency; m.CraftMultiplier = 4; m.GatherMultiplier = 3; m.Status = "采集速度已设为 3×"; });
+        add("08b-效率倍率-容量", m => { m.Page = TrainerView.PageEfficiency; m.EfficiencyTab = 1; m.Status = "仓储容量已设为 5×"; });
         add("09-设置", m => m.Page = TrainerView.PageSettings);
         add("10-使用说明", m => m.Page = TrainerView.PageHelp);
         add("11-收起侧栏", m => m.Preferences.Collapsed = true);

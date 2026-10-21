@@ -13,7 +13,7 @@ namespace DawnTrainer
     // All game work runs on Unity's main thread. No remote endpoints or injection service.
     public sealed partial class Trainer : MonoBehaviour
     {
-        public const string Version = "2.0.0";
+        public const string Version = "2.1.0";
         private static Trainer instance;
         internal static readonly bool[] Locks = new bool[7];
         private static readonly HashSet<Stat> lockedStats = new HashSet<Stat>();
@@ -33,7 +33,7 @@ namespace DawnTrainer
         private Vector2 resourceScroll, animalScroll;
         private Rect window = new Rect(0, 0, TrainerView.Width, TrainerView.Height);
         private float scale = 1, statusUntil, toastUntil;
-        private string status = "F11 显示 / 隐藏面板";
+        private string status = "F11 展开 / 收起，Shift+F11 显示 / 隐藏";
         private string lastSpawnName = "";
         private int lastSpawnCount;
         private float lastSpawnUntil;
@@ -68,7 +68,7 @@ namespace DawnTrainer
                 GameObject root = new GameObject("DawnOfManTrainer");
                 DontDestroyOnLoad(root);
                 instance = root.AddComponent<Trainer>();
-                Debug.Log("[DawnTrainer] Loaded " + Version + "; F11 toggles panel");
+                Debug.Log("[DawnTrainer] Loaded " + Version + "; F11 expands or collapses, Shift+F11 shows or hides the panel");
             }
             catch (Exception ex) { Debug.LogError("[DawnTrainer] Bootstrap: " + ex); }
         }
@@ -128,8 +128,16 @@ namespace DawnTrainer
         {
             SavePreferences(false);
             bool captured = CaptureShortcut();
-            if (!captured && Input.GetKeyDown(KeyCode.F11)) { visible = !visible; CancelKillConfirmation(); inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
-            if (!captured && visible && Input.GetKeyDown(KeyCode.Escape)) { visible = false; CancelKillConfirmation(); inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
+            if (!captured && Input.GetKeyDown(KeyCode.F11))
+            {
+                bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift), collapsed = preferences.Collapsed;
+                FeaturePolicy.PanelKey(shift, ref visible, ref collapsed);
+                preferences.Collapsed = collapsed;
+                CancelKillConfirmation(); if (ui != null) ui.ArmedAction = null;
+                inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null);
+            }
+            if (!captured && Input.GetKeyDown(KeyCode.Escape) && FeaturePolicy.EscapeEndsTyping(visible, GUIUtility.keyboardControl != 0))
+            { inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); }
             TrackPointer();
             if (diagnostic) DiagnosticTick();
             if (!Ready())

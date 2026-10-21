@@ -119,21 +119,41 @@ namespace DawnTrainer
         // ---------- 效率倍率 ----------
         private static void DrawMultipliers(UiCanvas c, UiModel m)
         {
-            c.Text(R(X0, BodyY - 2, BodyW - 70, 20), m.Ready ? "仅作用于玩家单位，切换地图后恢复 1×" : "进入地图后可调整，四项默认 1×", 12, Quiet, false, 0);
-            bool any = AnyMultiplier(m); float lw = c.Measure("全部 1×", 12, false) + 8; UiRect all = R(Right - lw, BodyY - 4, lw, 24);
+            int speeds = Changed(SpeedMultipliers(m)), capacities = Changed(CapacityMultipliers(m));
+            string[] counts = { m.Ready && speeds > 0 ? speeds.ToString() : "", m.Ready && capacities > 0 ? capacities.ToString() : "" };
+            int tab = Segmented(c, R(X0, BodyY, BodyW, 32), new string[] { "efficiency.tab.0", "efficiency.tab.1" }, new string[] { "速度", "容量" }, counts, m.EfficiencyTab, true);
+            if (tab >= 0) m.EfficiencyTab = tab;
+            c.Text(R(X0, 136, BodyW - 70, 20), m.Ready ? "仅作用于玩家单位，切换地图后恢复 1×" : "进入地图后可调整，默认均为 1×", 12, Quiet, false, 0);
+            bool any = AnyMultiplier(m); float lw = c.Measure("全部 1×", 12, false) + 8; UiRect all = R(Right - lw, 134, lw, 24);
             c.Text(all, "全部 1×", 12, m.Ready && any ? Accent : Quiet, false, 2);
             if (c.Hit(all, "efficiency.reset", m.Ready && any))
             {
-                if (m.StorageMultiplier != 1) { m.StorageMultiplier = 1; m.Emit("multiplier.storage", "1"); }
+                // Resets both tabs, in tab order, emitting only the values that changed.
                 if (m.BuildMultiplier != 1) { m.BuildMultiplier = 1; m.Emit("multiplier.build", "1"); }
+                if (m.CraftMultiplier != 1) { m.CraftMultiplier = 1; m.Emit("multiplier.craft", "1"); }
+                if (m.DryMultiplier != 1) { m.DryMultiplier = 1; m.Emit("multiplier.dry", "1"); }
+                if (m.GatherMultiplier != 1) { m.GatherMultiplier = 1; m.Emit("multiplier.gather", "1"); }
+                if (m.FarmMultiplier != 1) { m.FarmMultiplier = 1; m.Emit("multiplier.farm", "1"); }
+                if (m.StorageMultiplier != 1) { m.StorageMultiplier = 1; m.Emit("multiplier.storage", "1"); }
                 if (m.CarryMultiplier != 1) { m.CarryMultiplier = 1; m.Emit("multiplier.carry", "1"); }
                 if (m.TransportMultiplier != 1) { m.TransportMultiplier = 1; m.Emit("multiplier.transport", "1"); }
             }
-            m.StorageMultiplier = MultiplierBlock(c, m, 126, "storage", "仓储容量", m.StorageMultiplier, 10, "已建成的封闭仓储，不含露天堆场", false);
-            m.BuildMultiplier = MultiplierBlock(c, m, 226, "build", "建造速度", m.BuildMultiplier, 20, "施工进度提速，材料交付与搬运照常", false);
-            m.CarryMultiplier = MultiplierBlock(c, m, 326, "carry", "人力搬运", m.CarryMultiplier, 10, "成年村民的普通货物；儿童与重物不变", false);
-            m.TransportMultiplier = MultiplierBlock(c, m, 426, "transport", "运输工具容量", m.TransportMultiplier, 10, "仅拖板与拖车；犁和巨岩运输不变", true);
-            c.Text(R(X0, 540, BodyW, 20), "降低容量保留现货，超额只出不进；装备槽不变", 12, Quiet, false, 0);
+            if (m.EfficiencyTab == 0)
+            {
+                m.BuildMultiplier = MultiplierBlock(c, m, 162, "build", "建造速度", m.BuildMultiplier, 20, "建造、修理与拆解；材料交付照常", false);
+                m.CraftMultiplier = MultiplierBlock(c, m, 242, "craft", "制作速度", m.CraftMultiplier, 20, "工具、衣物、冶炼、面包、啤酒等配方", false);
+                m.DryMultiplier = MultiplierBlock(c, m, 322, "dry", "晾晒速度", m.DryMultiplier, 20, "腌肉、干鱼与干皮，无需村民值守", false);
+                m.GatherMultiplier = MultiplierBlock(c, m, 402, "gather", "采集速度", m.GatherMultiplier, 20, "砍伐、收获、采掘、捕鱼、挖土与取水", false);
+                m.FarmMultiplier = MultiplierBlock(c, m, 482, "farm", "农牧速度", m.FarmMultiplier, 20, "种植、耕种、收割、挤奶、剪毛、驯服与屠宰", true);
+                c.Text(R(X0, 558, BodyW, 16), "只加快进度；原料消耗、产出与奖励不变", 12, Quiet, false, 0);
+            }
+            else
+            {
+                m.StorageMultiplier = MultiplierBlock(c, m, 162, "storage", "仓储容量", m.StorageMultiplier, 10, "已建成的封闭仓储，不含露天堆场", false);
+                m.CarryMultiplier = MultiplierBlock(c, m, 242, "carry", "人力搬运", m.CarryMultiplier, 10, "成年村民的普通货物；儿童与重物不变", false);
+                m.TransportMultiplier = MultiplierBlock(c, m, 322, "transport", "运输工具容量", m.TransportMultiplier, 10, "仅拖板与拖车；犁和巨岩运输不变", true);
+                c.Text(R(X0, 398, BodyW, 16), "降低容量保留现货，超额只出不进；装备槽不变", 12, Quiet, false, 0);
+            }
         }
 
         private static int MultiplierBlock(UiCanvas c, UiModel m, float y, string key, string title, int value, int maximum, string note, bool last)
@@ -141,8 +161,8 @@ namespace DawnTrainer
             int current = Math.Max(1, Math.Min(maximum, value)), next = current;
             string id = "multiplier." + key;
             c.Text(R(X0, y, BodyW - 64, 22), title, 14, TextMain, true, 0);
-            c.Text(R(X0, y + 23, BodyW, 16), Short(c, note, BodyW, 12), 12, Quiet, false, 0);
-            UiRect minus = R(X0, y + 46, 28, 28), plus = R(Right - 28, y + 46, 28, 28), slider = R(X0 + 38, y + 46, BodyW - 76, 28);
+            c.Text(R(X0, y + 23, BodyW - 68, 16), Short(c, note, BodyW - 68, 12), 12, Quiet, false, 0);
+            UiRect minus = R(X0, y + 44, 28, 28), plus = R(Right - 28, y + 44, 28, 28), slider = R(X0 + 38, y + 44, BodyW - 76, 28);
             if (StepButton(c, minus, id + ".minus", "minus", m.Ready && current > 1)) next = current - 1;
             if (StepButton(c, plus, id + ".plus", "plus", m.Ready && current < maximum)) next = current + 1;
             float raw = current;
@@ -156,13 +176,13 @@ namespace DawnTrainer
                 if (snapped != current) next = snapped;
             }
             float ratio = (float)(next - 1) / (maximum - 1);
-            c.Fill(R(slider.X, y + 58, slider.W, 4), m.Ready ? Raise : Surface, 2);
-            if (ratio > 0) c.Fill(R(slider.X, y + 58, slider.W * ratio, 4), m.Ready ? Accent : "#4A4F66", 2);
-            c.Fill(R(slider.X + slider.W * ratio - 7, y + 53, 14, 14), m.Ready ? Knob : "#6E6A62", 7);
-            c.Text(R(slider.X, y + 76, 40, 14), "1×", 12, Quiet, false, 0);
-            c.Text(R(slider.X + slider.W - 40, y + 76, 40, 14), maximum + "×", 12, Quiet, false, 2);
+            c.Fill(R(slider.X, y + 56, slider.W, 4), m.Ready ? Raise : Surface, 2);
+            if (ratio > 0) c.Fill(R(slider.X, y + 56, slider.W * ratio, 4), m.Ready ? Accent : "#4A4F66", 2);
+            c.Fill(R(slider.X + slider.W * ratio - 7, y + 51, 14, 14), m.Ready ? Knob : "#6E6A62", 7);
+            // The ceiling sits under the value, since the steppers leave no room at the track ends.
             c.Text(R(Right - 56, y, 56, 22), next + "×", next == 1 ? 15 : 17, !m.Ready || next == 1 ? Quiet : AccentInk, next != 1, 2);
-            if (!last) c.Line(X0, y + 96, Right, y + 96, Divider, 1);
+            c.Text(R(Right - 64, y + 23, 64, 16), "最高 " + maximum + "×", 11, Quiet, false, 2);
+            if (!last) c.Line(X0, y + 80, Right, y + 80, Divider, 1);
             if (next != current) m.Emit(id, next.ToString());
             return next;
         }
@@ -309,8 +329,8 @@ namespace DawnTrainer
                 else m.GiveHotkey = Switch(c, toggle, "give.hotkey", m.GiveHotkey);
                 c.Line(X0, y + 46, Right, y + 46, Divider, 1);
             }
-            c.Text(R(X0, 262, BodyW - 120, 19), "显示 / 隐藏面板", 14, TextMain, false, 0);
-            c.Text(R(X0, 281, BodyW - 120, 16), "固定键位", 12, Quiet, false, 0);
+            c.Text(R(X0, 262, BodyW - 120, 19), "展开 / 收起面板", 14, TextMain, false, 0);
+            c.Text(R(X0, 281, BodyW - 120, 16), "固定键位；Shift+F11 显示或隐藏", 12, Quiet, false, 0);
             Key(c, R(Right - 44 - 62, 265, 62, 28), "F11");
             c.Text(R(X0, 308, BodyW, 16), "开关每次启动默认关闭；点按键后按新键，Esc 取消", 12, Quiet, false, 0);
 

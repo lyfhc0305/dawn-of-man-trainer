@@ -9,6 +9,7 @@ namespace DawnTrainer
     public sealed partial class Trainer
     {
         private int storageMultiplier = 1, buildMultiplier = 1, carryMultiplier = 1, transportMultiplier = 1;
+        private int craftMultiplier = 1, dryMultiplier = 1, gatherMultiplier = 1, farmMultiplier = 1;
         private static readonly FieldInfo multiplierSlotDefinition = typeof(Slot).GetField("mSlotDefinition", BindingFlags.Instance | BindingFlags.NonPublic);
         private sealed class MultiplierSlotState
         {
@@ -139,6 +140,37 @@ namespace DawnTrainer
             return ProductionPolicy.ScaleBuildWork(work, trainer.buildMultiplier);
         }
 
+        // The multiplier for a hooked native work state; harvesting is a tree action but farm work.
+        private int WorkMultiplier(BeingState state)
+        {
+            if (state is BeingStateRepairing || state is BeingStateRecycling) return buildMultiplier;
+            if (state is BeingStateCrafting) return craftMultiplier;
+            if (state is BeingStateHarvesting || state is BeingStatePlanting || state is BeingStatePlowing || state is BeingStateMilking ||
+                state is BeingStateShearing || state is BeingStateTaming || state is BeingStateButchering || state is BeingStateSlaughtering) return farmMultiplier;
+            if (state is BeingStateTreeAction || state is BeingStateMining || state is BeingStateMiningUnderground || state is BeingStateGatheringProp ||
+                state is BeingStateGatheringDetail || state is BeingStateExtractingMud || state is BeingStateExtractingWater || state is BeingStateFishing) return gatherMultiplier;
+            return 1;
+        }
+
+        // Installer passes the timeStep feeding one native progress value. Only the progress runs
+        // faster: each finished unit still consumes, produces, wears tools and rewards natively.
+        public static float ScaleWork(float work, BeingState state, Being being)
+        {
+            Trainer trainer = instance;
+            int factor = trainer == null ? 1 : trainer.WorkMultiplier(state);
+            Human human = being as Human;
+            if (factor <= 1 || human == null || !trainer.MultiplierOwner(human) || !human.isAlive()) return work;
+            return ProductionPolicy.ScaleBuildWork(work, factor);
+        }
+
+        // Laborless recipes (cured meat, dried fish, dried skin) progress in their rack's own tick.
+        public static float ScaleDryWork(float work, Structure rack)
+        {
+            Trainer trainer = instance;
+            if (trainer == null || trainer.dryMultiplier <= 1 || !trainer.MultiplierOwner(rack) || !rack.isBuilt()) return work;
+            return ProductionPolicy.ScaleBuildWork(work, trainer.dryMultiplier);
+        }
+
         private void RestoreMultiplierSlots()
         {
             if (multiplierSlotDefinition != null)
@@ -152,18 +184,23 @@ namespace DawnTrainer
         private void ResetMultipliers()
         {
             storageMultiplier = buildMultiplier = carryMultiplier = transportMultiplier = 1;
+            craftMultiplier = dryMultiplier = gatherMultiplier = farmMultiplier = 1;
             RestoreMultiplierSlots(); UpdateMultiplierModel();
         }
 
         private void SetMultiplier(string kind, int value)
         {
-            int maximum = kind == "build" ? 20 : 10;
+            int maximum = kind == "storage" || kind == "carry" || kind == "transport" ? 10 : 20;
             if (value < 1 || value > maximum) throw new ArgumentOutOfRangeException("value", "倍率超出允许范围");
             string label;
             switch (kind)
             {
                 case "storage": storageMultiplier = value; label = "仓储容量"; break;
                 case "build": buildMultiplier = value; label = "建造速度"; break;
+                case "craft": craftMultiplier = value; label = "制作速度"; break;
+                case "dry": dryMultiplier = value; label = "晾晒速度"; break;
+                case "gather": gatherMultiplier = value; label = "采集速度"; break;
+                case "farm": farmMultiplier = value; label = "农牧速度"; break;
                 case "carry": carryMultiplier = value; label = "人力搬运"; break;
                 case "transport": transportMultiplier = value; label = "运输工具容量"; break;
                 default: throw new ArgumentException("未知倍率项目", "kind");
@@ -183,6 +220,8 @@ namespace DawnTrainer
             if (ui == null) return;
             ui.StorageMultiplier = storageMultiplier; ui.BuildMultiplier = buildMultiplier;
             ui.CarryMultiplier = carryMultiplier; ui.TransportMultiplier = transportMultiplier;
+            ui.CraftMultiplier = craftMultiplier; ui.DryMultiplier = dryMultiplier;
+            ui.GatherMultiplier = gatherMultiplier; ui.FarmMultiplier = farmMultiplier;
         }
     }
 }

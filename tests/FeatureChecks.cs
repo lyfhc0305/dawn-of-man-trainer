@@ -42,6 +42,15 @@ internal static class FeatureChecks
         check(Near(dy,72)&&dy+620<=720-12,"short screens keep the docked drawer fully visible");
         FeaturePolicy.DockPosition(0,1920,1080,56,520,out dx,out dy);
         check(Near(dx,1920-56-12),"the collapsed rail stays anchored to the docked edge");
+        bool shown=true,folded=false;FeaturePolicy.PanelKey(true,ref shown,ref folded);
+        check(!shown&&!folded,"Shift+F11 hides the panel without changing its collapsed state");
+        FeaturePolicy.PanelKey(true,ref shown,ref folded);check(shown&&!folded,"Shift+F11 shows the panel again");
+        FeaturePolicy.PanelKey(false,ref shown,ref folded);check(shown&&folded,"F11 collapses a visible panel");
+        FeaturePolicy.PanelKey(false,ref shown,ref folded);check(shown&&!folded,"F11 expands a collapsed panel");
+        shown=false;folded=true;FeaturePolicy.PanelKey(false,ref shown,ref folded);check(shown&&!folded,"F11 on a hidden panel opens it expanded");
+        shown=false;folded=true;FeaturePolicy.PanelKey(true,ref shown,ref folded);check(shown&&folded,"Shift+F11 restores a collapsed panel as it was");
+        check(!FeaturePolicy.EscapeEndsTyping(true,false)&&!FeaturePolicy.EscapeEndsTyping(false,false)&&!FeaturePolicy.EscapeEndsTyping(false,true),"Esc never closes the panel and reaches the game unless a panel field is being typed in");
+        check(FeaturePolicy.EscapeEndsTyping(true,true),"Esc in a panel field only ends typing");
         FeaturePolicy.DockPosition(0,Single.NaN,Single.NaN,400,620,out dx,out dy);
         check(Near(dx,12)&&Near(dy,12),"invalid screen sizes fall back to a visible dock position");
         check(FeaturePolicy.ClampPanelPosition(-100,1920,1180)==12&&FeaturePolicy.ClampPanelPosition(2000,1920,1180)==728,"dragging beyond left and right edges clamps without recentering");
