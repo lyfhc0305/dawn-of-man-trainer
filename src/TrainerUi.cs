@@ -59,7 +59,7 @@ namespace DawnTrainer
             ui.SelectedResource = selectedResource == null ? null : selectedResource.getId();
             ui.SelectedAnimal = selectedAnimal == null ? null : selectedAnimal.getId();
             ui.ResourceScroll = resourceScroll.y; ui.AnimalScroll = animalScroll.y;
-            ui.Status = statusUntil > Time.realtimeSinceStartup ? status : ready ? "准备就绪，修改仅作用于当前地图。" : "修改器已加载，等待进入地图。";
+            ui.Status = statusUntil > Time.realtimeSinceStartup ? status : ready ? "准备就绪，修改仅作用于当前地图" : "修改器已加载，等待进入地图";
             ui.StatusError = uiStatusError && statusUntil > Time.realtimeSinceStartup;
             ui.Busy = jobs.Count > 0; ui.Done = ui.Total = 0; ui.TaskName = "";
             ui.CompletedName = lastSpawnName; ui.CompletedCount = lastSpawnCount;
@@ -81,6 +81,7 @@ namespace DawnTrainer
             }
             // A pending second click expires; a kill confirmation also ends when the selection changes.
             if (ui.ArmedAction != null && (Time.realtimeSinceStartup > armedUntil || (ui.ArmedAction == "kill" && selectionSignature != armedSignature))) ui.ArmedAction = null;
+            ui.ArmedSeconds = ui.ArmedAction == null ? 0 : Mathf.Max(1, Mathf.CeilToInt(armedUntil - Time.realtimeSinceStartup));
             UpdateFeatureModel();
         }
 
@@ -129,21 +130,32 @@ namespace DawnTrainer
                 else if (toastUntil <= Time.realtimeSinceStartup) return;
                 // Layout stays in panel units; the canvas scales positions and font sizes, so text is rasterized at its final size.
                 GUI.matrix = Matrix4x4.identity;
-                scale = FeaturePolicy.PanelScale(Screen.width, Screen.height, TrainerView.Width, TrainerView.Height, preferences.UiScale);
+                scale = FeaturePolicy.DrawerScale(Screen.width, Screen.height, preferences.UiScale);
                 uiCanvas.SetScale(scale);
                 float width = Screen.width / scale, height = Screen.height / scale;
                 if (!visible) { TrainerView.RenderToast(uiCanvas, width, status, uiStatusError); return; }
-                window.width = TrainerView.Width; window.height = TrainerView.PanelHeight(page);
-                if (!windowPositioned) { window.x = (width - window.width) / 2; window.y = (height - window.height) / 2; windowPositioned = true; }
+                bool collapsed = preferences.Collapsed;
+                window.width = TrainerView.PanelWidth(collapsed); window.height = TrainerView.PanelHeight(collapsed);
+                // A docked drawer is placed every frame; a floating one keeps where it was dropped.
+                if (preferences.Dock != TrainerView.DockFloating || !windowPositioned)
+                {
+                    float dockX, dockY;
+                    FeaturePolicy.DockPosition(preferences.Dock == TrainerView.DockFloating ? TrainerView.DockRight : preferences.Dock, width, height, window.width, window.height, out dockX, out dockY);
+                    window.x = dockX; window.y = dockY; windowPositioned = true;
+                }
                 window.x = FeaturePolicy.ClampPanelPosition(window.x, width, window.width);
                 window.y = FeaturePolicy.ClampPanelPosition(window.y, height, window.height);
                 // No full-screen dimming: the world around the panel stays visible and clickable.
-                uiCanvas.Fill(new UiRect(window.x + 3, window.y + 10, window.width, window.height), "#02030677", 22);
+                uiCanvas.Fill(new UiRect(window.x + 2, window.y + 8, window.width, window.height), "#0302016E", 18);
                 // If game state cannot be read this event, keep drawing the last model with the error.
                 try { UpdateUiModel(); }
                 catch (Exception ex) { Report(ex); ui.Status = status; ui.StatusError = true; }
+                float placedX = window.x, placedY = window.y;
                 panelRect = GUI.Window(884184, uiCanvas.Scaled(new UiRect(window.x, window.y, window.width, window.height)), DrawInterfaceWindow, GUIContent.none, GUIStyle.none);
                 window.x = panelRect.x / scale; window.y = panelRect.y / scale;
+                // Dragging the title bar of a docked drawer detaches it where it was dropped.
+                if (preferences.Dock != TrainerView.DockFloating && (Math.Abs(window.x - placedX) > 2 || Math.Abs(window.y - placedY) > 2))
+                    preferences.Dock = TrainerView.DockFloating;
             }
             finally
             {
@@ -158,7 +170,7 @@ namespace DawnTrainer
             // Unity can invoke a window callback after GUI.Window returns. Commit edits
             // here before the next OnGUI event refreshes the model from runtime state.
             ApplyUiModel();
-            GUI.DragWindow(uiCanvas.Scaled(new UiRect(12, 12, 970, 80)));
+            GUI.DragWindow(uiCanvas.Scaled(TrainerView.DragArea(preferences.Collapsed)));
         }
     }
 
@@ -181,12 +193,12 @@ namespace DawnTrainer
             foreach (Texture2D texture in lines.Values) { ownedTextures.Remove(texture); UnityEngine.Object.Destroy(texture); }
             lines.Clear();
             inputLeft = new GUIStyle(skin.textField) { font = skin.font, fontSize = Px(14), alignment = TextAnchor.MiddleLeft, padding = new RectOffset(Px(4), Px(4), 0, 0), border = new RectOffset(), margin = new RectOffset(), clipping = TextClipping.Clip };
-            inputLeft.normal.textColor = Parse("#F0F1F4"); inputLeft.focused.textColor = inputLeft.normal.textColor;
+            inputLeft.normal.textColor = Parse(TrainerView.TextMain); inputLeft.focused.textColor = inputLeft.normal.textColor;
             inputLeft.normal.background = inputLeft.hover.background = inputLeft.focused.background = null;
             inputCenter = new GUIStyle(inputLeft) { alignment = TextAnchor.MiddleCenter, fontSize = Px(16) };
             scrollTrack = new GUIStyle(skin.verticalScrollbar) { fixedWidth = Px(5), margin = new RectOffset(Px(8), 0, 0, 0), border = new RectOffset() };
             scrollThumb = new GUIStyle(skin.verticalScrollbarThumb) { border = new RectOffset() };
-            scrollTrack.normal.background = Pixel("#15171B"); scrollThumb.normal.background = scrollThumb.hover.background = scrollThumb.active.background = Pixel("#474E5D");
+            scrollTrack.normal.background = Pixel("#171512"); scrollThumb.normal.background = scrollThumb.hover.background = scrollThumb.active.background = Pixel("#57514A");
             skin.verticalScrollbar = scrollTrack; skin.verticalScrollbarThumb = scrollThumb;
             skin.verticalScrollbarUpButton = new GUIStyle { fixedHeight = 0 }; skin.verticalScrollbarDownButton = new GUIStyle { fixedHeight = 0 };
         }

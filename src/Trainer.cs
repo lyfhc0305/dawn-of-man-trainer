@@ -13,7 +13,7 @@ namespace DawnTrainer
     // All game work runs on Unity's main thread. No remote endpoints or injection service.
     public sealed partial class Trainer : MonoBehaviour
     {
-        public const string Version = "1.5.0";
+        public const string Version = "2.0.0";
         private static Trainer instance;
         internal static readonly bool[] Locks = new bool[7];
         private static readonly HashSet<Stat> lockedStats = new HashSet<Stat>();
@@ -31,7 +31,7 @@ namespace DawnTrainer
         private string search = "", quantity = "10", animalQuantity = "1";
         private EntityType selectedResource, selectedAnimal;
         private Vector2 resourceScroll, animalScroll;
-        private Rect window = new Rect(0, 0, 1180, 800);
+        private Rect window = new Rect(0, 0, TrainerView.Width, TrainerView.Height);
         private float scale = 1, statusUntil, toastUntil;
         private string status = "F11 显示 / 隐藏面板";
         private string lastSpawnName = "";
@@ -240,7 +240,7 @@ namespace DawnTrainer
             lastSpawnUntil = 0;
             uiStatusError = true;
             string message = ex.GetType().Name + ": " + ex.Message;
-            status = "操作未完成：" + ex.Message; statusUntil = Time.realtimeSinceStartup + 10;
+            status = ex is InvalidOperationException ? ex.Message : "操作未完成：" + ex.Message; statusUntil = Time.realtimeSinceStartup + 10;
             if (!visible) toastUntil = Time.realtimeSinceStartup + 4;
             if (message != lastError || Time.realtimeSinceStartup - lastErrorTime > 10)
             { Debug.LogError("[DawnTrainer] " + ex); lastError = message; lastErrorTime = Time.realtimeSinceStartup; }
@@ -258,7 +258,7 @@ namespace DawnTrainer
                     delegate { return target.increaseBuildProgress(1f - target.getBuildProgress()); },
                     delegate { knowledge.onBuildableBuilt(target); })) completed++;
             }
-            Notify(completed > 0 ? "已完成 " + completed + " 个选中建筑 / 运输工具" : "请先选中未完工的建筑");
+            Notify(completed > 0 ? "已完成 " + completed + " 个建造" : "请先选中未完工的建筑");
             return completed;
         }
 
@@ -267,7 +267,7 @@ namespace DawnTrainer
             List<Being> targets = new List<Being>();
             foreach (PhysicalEntity entity in SelectionSnapshot()) if (CanKill(entity)) targets.Add((Being)entity);
             foreach (Being target in targets) { target.getHealth().setValue(0f); target.triggerDeath(DeathType.Killed); }
-            Notify(targets.Count > 0 ? "已杀死 " + targets.Count + " 个选中单位" : "请先选中活着的人物或动物");
+            Notify(targets.Count > 0 ? "已杀死 " + targets.Count + " 个单位" : "请先选中人物或动物");
             return targets.Count;
         }
 
@@ -306,7 +306,7 @@ namespace DawnTrainer
             string villagers = SelectedVillagers(), signature = SelectionSignature();
             if (villagers == null) { hotkeyKillConfirmation.Clear(); return true; }
             if (hotkeyKillConfirmation.Confirm(signature, Time.realtimeSinceStartup)) return true;
-            Notify("选中目标含村民 " + villagers + "，4 秒内再按 " + preferences.Keys[1] + " 确认杀死");
+            Notify("含村民 " + villagers + "，4 秒内再按 " + preferences.Keys[1] + " 确认");
             return false;
         }
 
@@ -325,7 +325,7 @@ namespace DawnTrainer
             RaycastHit hit;
             if (Physics.Raycast(camera.ScreenPointToRay(new Vector3(Screen.width / 2f, Screen.height / 2f, 0)), out hit, 2000f, TerrainConstants.TerrainLayerMask))
                 return hit.point;
-            throw new InvalidOperationException("画面中心未对准地面，请调整镜头或先选中一个单位");
+            throw new InvalidOperationException("画面中心没有地面，请调整镜头");
         }
 
         private int ReadQuantity(string text, int maximum)
@@ -350,7 +350,7 @@ namespace DawnTrainer
 
         internal void QueueSpawn(EntityType type, int amount, Vector3 position, Age spawnAge, Gender spawnGender)
         {
-            if (jobs.Count > 0) throw new InvalidOperationException("请等当前添加操作完成");
+            if (jobs.Count > 0) throw new InvalidOperationException("请等当前添加完成");
             lastSpawnUntil = 0;
             batchTotal = amount; batchDone = 0; batchLabel = type.getName();
             jobs.Enqueue(new SpawnJob { Manager = manager, Type = type, Position = position, Remaining = amount, Total = amount, Age = spawnAge, Gender = spawnGender });
@@ -390,7 +390,7 @@ namespace DawnTrainer
                     if (jobs.Count == 0)
                     {
                         lastSpawnName = batchLabel; lastSpawnCount = batchTotal; lastSpawnUntil = Time.realtimeSinceStartup + 6;
-                        Notify("已添加 " + batchLabel + " × " + batchTotal + "，已在地图地面生成");
+                        Notify("已添加 " + batchLabel + " × " + batchTotal);
                     }
                 }
             }
@@ -405,8 +405,8 @@ namespace DawnTrainer
             TimeManager time = TransientSingleton<TimeManager>.CurrentInstance;
             float? speed = overlayPause.ResetSpeed(time.isRealPaused(), visible && preferences.AutoPause);
             if (speed.HasValue) time.setTimeScale(speed.Value);
-            Notify(overlayPause.ResetPending ? "所有持续开关已关闭，关闭游戏暂停菜单后恢复 1 倍速（面板自动暂停仍生效）"
-                : overlayPause.Owns ? "所有持续开关已关闭，关闭面板后恢复 1 倍速" : "所有持续开关已关闭，速度恢复 1 倍");
+            Notify(overlayPause.ResetPending ? "已全部关闭，关闭菜单后恢复 1×"
+                : overlayPause.Owns ? "已全部关闭，关闭面板后恢复 1×" : "已全部关闭，速度恢复 1×");
         }
 
         private void OnDestroy()
@@ -445,9 +445,9 @@ namespace DawnTrainer
                 IntegrationChecks.Poll(this, manager);
                 if (IntegrationChecks.Finished)
                 {
-                    diagnostic = false; visible = true; page = 5;
+                    diagnostic = false; visible = true; page = TrainerView.PageTargets;
                     Reset(); TransientSingleton<TimeManager>.CurrentInstance.fakePause();
-                    Notify("自检完成；当前为未保存的测试地图");
+                    Notify("自检完成，当前为未保存的测试地图");
                 }
             }
         }

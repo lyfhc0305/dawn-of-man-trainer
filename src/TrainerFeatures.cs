@@ -65,10 +65,10 @@ namespace DawnTrainer
             {
                 if (code == KeyCode.None || (int)code >= (int)KeyCode.Mouse0 || !Input.GetKeyDown(code)) continue;
                 string error = FeaturePolicy.ShortcutError(code.ToString(), capturingKey, preferences.Keys, ReservedKeys());
-                if (error != null) { Notify(error + "；Esc 取消"); return true; }
+                if (error != null) { Notify(error + "，Esc 取消"); return true; }
                 preferences.Keys[capturingKey] = code.ToString(); capturingKey = -1;
                 inputBlockedUntilFrame = Time.frameCount + 1; GUI.FocusControl(null); SavePreferences(true);
-                Notify("快捷键已保存，对应开关仍需手动启用"); return true;
+                Notify("快捷键已保存"); return true;
             }
             return true;
         }
@@ -99,7 +99,7 @@ namespace DawnTrainer
         {
             if (Single.IsNaN(speed) || Single.IsInfinity(speed) || speed < 0 || speed > 15) return;
             TimeManager time = TransientSingleton<TimeManager>.CurrentInstance;
-            if (time.isRealPaused()) throw new InvalidOperationException("请先关闭游戏暂停菜单，再调整速度");
+            if (time.isRealPaused()) throw new InvalidOperationException("请先关闭游戏暂停菜单");
             if (speed > 0) lastRunningSpeed = speed;
             float actual = overlayPause.RequestSpeed(speed, visible && preferences.AutoPause);
             time.setTimeScale(actual);
@@ -149,7 +149,7 @@ namespace DawnTrainer
                 done++;
             }
             TransientSingleton<GameGuiManager>.CurrentInstance.requestRefresh();
-            Notify(done == 0 ? "请先选择存活的玩家人物或家畜" : "已恢复 " + done + " 个选中单位的" + (all ? "生存状态" : "健康值"));
+            Notify(done == 0 ? "请先选中存活的玩家单位" : "已恢复 " + done + " 个单位的" + (all ? "生存状态" : "健康"));
         }
         private void RepairSelected(bool resourcesOnly)
         {
@@ -160,7 +160,7 @@ namespace DawnTrainer
                 { Structure s = (Structure)e; s.increaseCondition(1 - s.getCondition().getValue()); s.resetRepairMaterials(); gui.requestRefresh(s); done++; }
                 if (resourcesOnly && CanRestoreResource(e)) { ((Resource)e).getCondition().setValue(1); gui.requestRefresh(e); done++; }
             }
-            Notify("已恢复 " + done + (resourcesOnly ? " 件选中工具 / 衣物的耐久" : " 个选中建筑的状态"));
+            Notify(resourcesOnly ? "已恢复 " + done + " 件物品耐久" : "已修缮 " + done + " 个建筑");
         }
         private void TameSelected()
         {
@@ -172,7 +172,7 @@ namespace DawnTrainer
                 result.onSpawn(); TransientSingleton<KnowledgeManager>.CurrentInstance.onNewResidentAnimal(result); done++;
             }
             TransientSingleton<GameGuiManager>.CurrentInstance.requestRefresh();
-            Notify(done > 0 ? "已将 " + done + " 只符合条件的动物转为对应家畜" : "没有符合驯化条件的动物：" + reason);
+            Notify(done > 0 ? "已驯化 " + done + " 只动物" : "无法驯化：" + reason);
         }
         private int CountVisitors<T>() where T : Being
         {
@@ -182,14 +182,14 @@ namespace DawnTrainer
         }
         private void Invite(bool migrant)
         {
-            if (migrant && CountVisitors<Migrant>() > 0) throw new InvalidOperationException("已有移民在前来途中，请等待抵达");
-            if (!migrant && CountVisitors<Trader>() > 0) throw new InvalidOperationException("地图上已有商人，请等待离开后再邀请");
-            if (migrant && !manager.hasResidentCapacity()) throw new InvalidOperationException("住房没有剩余容量，请先增加住房");
+            if (migrant && CountVisitors<Migrant>() > 0) throw new InvalidOperationException("已有移民在途中");
+            if (!migrant && CountVisitors<Trader>() > 0) throw new InvalidOperationException("地图上已有商人");
+            if (migrant && !manager.hasResidentCapacity()) throw new InvalidOperationException("住房已满，请先增加住房");
             int before = migrant ? CountVisitors<Migrant>() : CountVisitors<Trader>();
             SettlementManager settlement = TransientSingleton<SettlementManager>.CurrentInstance;
             if (migrant) settlement.spawnMigrantGroup(); else settlement.spawnTrader();
             int created = (migrant ? CountVisitors<Migrant>() : CountVisitors<Trader>()) - before;
-            Notify(created > 0 ? (migrant ? "已有 " + created + " 名移民" : "商队已出发") + "，将从地图边缘前来" : "当前场景没有生成访客，请检查场景移民设置");
+            Notify(created > 0 ? (migrant ? "已邀请 " + created + " 名移民" : "商队已出发") : "本场景没有生成访客");
         }
         private List<SupplyLine> MissingMaterials(List<PhysicalEntity> selected, out List<SpawnJob> plan)
         {
@@ -213,19 +213,19 @@ namespace DawnTrainer
         }
         private void CommitPlan(List<SpawnJob> plan, string label)
         {
-            if (jobs.Count > 0) throw new InvalidOperationException("请等当前添加完成，或先停止生成");
+            if (jobs.Count > 0) throw new InvalidOperationException("请等当前添加完成");
             List<SupplyLine> lines = new List<SupplyLine>(); HashSet<string> available = new HashSet<string>();
             foreach (EntityType r in resources) available.Add(r.getId());
             foreach (SpawnJob job in plan) lines.Add(new SupplyLine { Id = job.Type.getId(), Quantity = job.Total.ToString() });
             int total = FeaturePolicy.ValidateSupply(lines, available, FeaturePolicy.MaximumTotal);
             foreach (SpawnJob job in plan) jobs.Enqueue(job);
             batchTotal = total; batchDone = 0; batchLabel = label; lastSpawnUntil = 0;
-            Notify("正在添加 " + label + "，共 " + total + " 件");
+            Notify("正在添加 " + label + " · " + total + " 件");
         }
         private void SupplyBuildings()
         {
             List<SpawnJob> plan; MissingMaterials(SelectionSnapshot(), out plan);
-            if (plan.Count == 0) { Notify("所选未完工建筑没有尚未交付的材料"); return; }
+            if (plan.Count == 0) { Notify("所选建筑没有缺料"); return; }
             CommitPlan(plan, "建筑缺料补给");
         }
         private void QueuePack(List<SupplyLine> lines, string name)
@@ -236,7 +236,7 @@ namespace DawnTrainer
             CommitPlan(plan, name);
         }
         private void CancelSpawns()
-        { jobs.Clear(); lastSpawnUntil = 0; Notify("已停止后续生成，已生成的 " + batchDone + " 件会保留在地图"); }
+        { jobs.Clear(); lastSpawnUntil = 0; Notify("已停止，已生成的 " + batchDone + " 件保留"); }
 
         private void UpdateFeatureModel()
         {
@@ -266,13 +266,13 @@ namespace DawnTrainer
             if (action == "pack.notice") { Notify(value); return true; }
             if (action == "focus.clear") { GUI.FocusControl(null); return true; }
             if (action == "key.capture") { capturingKey = Int32.Parse(value); GUI.FocusControl(null); return true; }
-            if (action == "prefs.default") { preferences.Keys = new string[] { "Insert", "Delete", "F10" }; preferences.AutoPause = false; preferences.UiScale = 100; capturingKey = -1; SavePreferences(true); return true; }
+            if (action == "prefs.default") { preferences.Keys = new string[] { "Insert", "Delete", "F10" }; preferences.AutoPause = false; preferences.UiScale = 100; preferences.Dock = TrainerView.DockRight; preferences.Collapsed = false; capturingKey = -1; SavePreferences(true); return true; }
             if (!Ready()) return false;
             if (action.StartsWith("multiplier.", StringComparison.Ordinal))
             {
                 string kind = action.Substring("multiplier.".Length);
                 int multiplier;
-                if (!Int32.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out multiplier)) throw new InvalidOperationException("倍率必须是大于等于 1 的整数");
+                if (!Int32.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out multiplier)) throw new InvalidOperationException("倍率需为正整数");
                 Enqueue(delegate { SetMultiplier(kind, multiplier); });
             }
             else if (action == "rescue.health") Enqueue(delegate { RescueSelected(false); });

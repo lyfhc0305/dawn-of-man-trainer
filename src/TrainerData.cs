@@ -20,8 +20,8 @@ namespace DawnTrainer
     internal sealed class TrainerPreferences
     {
         internal string[] Keys = { "Insert", "Delete", "F10" };
-        internal bool AutoPause;
-        internal int UiScale = 100;
+        internal bool AutoPause, Collapsed;
+        internal int UiScale = 100, Dock;
         internal string Quantity = "10", AnimalQuantity = "1", Resource = "", Animal = "";
         internal float WindowX, WindowY;
         internal readonly HashSet<string> Favorites = new HashSet<string>(StringComparer.Ordinal);
@@ -47,6 +47,7 @@ namespace DawnTrainer
             StringBuilder b = new StringBuilder("Version=1\n");
             for (int i = 0; i < 3; i++) b.Append("Key" + i + "=" + Keys[i] + "\n");
             b.Append("AutoPause=" + AutoPause + "\nUiScale=" + UiScale + "\nQuantity=" + Quantity + "\nAnimalQuantity=" + AnimalQuantity + "\n");
+            b.Append("Dock=" + Dock + "\nCollapsed=" + Collapsed + "\n");
             b.Append("Resource=" + Encode(Resource) + "\nAnimal=" + Encode(Animal) + "\n");
             b.Append("WindowX=" + WindowX.ToString("R", CultureInfo.InvariantCulture) + "\nWindowY=" + WindowY.ToString("R", CultureInfo.InvariantCulture) + "\n");
             List<string> favorites = new List<string>(Favorites); favorites.Sort(StringComparer.Ordinal);
@@ -73,6 +74,8 @@ namespace DawnTrainer
                     if (key == "Key0" || key == "Key1" || key == "Key2") { if (value.Length < 32) p.Keys[key[3] - '0'] = value; }
                     else if (key == "AutoPause" && Boolean.TryParse(value, out flag)) p.AutoPause = flag;
                     else if (key == "UiScale" && Int32.TryParse(value, out count) && Array.IndexOf(FeaturePolicy.UiScales, count) >= 0) p.UiScale = count;
+                    else if (key == "Dock" && Int32.TryParse(value, out count) && count >= 0 && count <= 2) p.Dock = count;
+                    else if (key == "Collapsed" && Boolean.TryParse(value, out flag)) p.Collapsed = flag;
                     else if (key == "Quantity" && Int32.TryParse(value, out count) && count >= 1 && count <= 1000) p.Quantity = value;
                     else if (key == "AnimalQuantity" && Int32.TryParse(value, out count) && count >= 1 && count <= 50) p.AnimalQuantity = value;
                     else if (key == "Resource") p.Resource = Decode(value);
@@ -122,13 +125,24 @@ namespace DawnTrainer
     {
         internal const int MaximumTotal = 5000, MaximumJobs = 128;
         internal static readonly int[] UiScales = { 80, 90, 100, 110, 125, 150 };
-        // 100% keeps the panel near 75% of screen height (never below 1:1); the result always fits and snaps to 0.05 steps.
-        internal static float PanelScale(float screenWidth, float screenHeight, float panelWidth, float panelHeight, int percent)
+        internal const float DrawerWidth = 400, DrawerHeight = 620;
+        // 100% keeps the drawer near 58% of screen height (never below 1:1), so on 16:9 screens it sits between
+        // the game's top-right status bar and its bottom-right unit card; the result always fits and snaps to 0.05 steps.
+        internal static float DrawerScale(float screenWidth, float screenHeight, int percent)
         {
-            float fit = Math.Min((screenWidth - 48) / panelWidth, (screenHeight - 48) / panelHeight);
-            float scale = Math.Min(fit, Math.Max(1, screenHeight * .75f / panelHeight) * percent / 100f);
+            float fit = Math.Min((screenWidth - 24) / DrawerWidth, (screenHeight - 24) / DrawerHeight);
+            float scale = Math.Min(fit, Math.Max(1, screenHeight * .58f / DrawerHeight) * percent / 100f);
             if (Single.IsNaN(scale) || Single.IsInfinity(scale)) return 1;
             return Math.Max(.25f, (float)Math.Floor(scale * 20 + .0001f) / 20);
+        }
+        // Docked panels keep 12 units from the screen edge. The right dock starts below the game's top-right status
+        // bar; the left dock starts below the resource bar. Both stay on screen when the drawer is taller than the gap.
+        internal static void DockPosition(int dock, float screenWidth, float screenHeight, float panelWidth, float panelHeight, out float x, out float y)
+        {
+            x = dock == 1 ? 12 : screenWidth - panelWidth - 12;
+            y = Math.Max(12, Math.Min(screenHeight - panelHeight - 12, screenHeight * (dock == 1 ? .28f : .10f)));
+            if (Single.IsNaN(x) || Single.IsInfinity(x)) x = 12;
+            if (Single.IsNaN(y) || Single.IsInfinity(y)) y = 12;
         }
         internal static float NextPauseSpeed(float current, ref float lastRunning)
         {
@@ -152,14 +166,14 @@ namespace DawnTrainer
                 if (line.Count < 1 || line.Count > 1000) throw new InvalidOperationException("每项数量需要为 1–1000");
                 total += line.Count;
             }
-            if (total > MaximumTotal) throw new InvalidOperationException("一次最多添加 5000 件，请拆分物资包");
+            if (total > MaximumTotal) throw new InvalidOperationException("超过 5000 件，请拆分物资包");
             return (int)total;
         }
         internal static string ShortcutError(string key, int slot, string[] keys, ISet<string> reserved)
         {
-            if (key == "None" || key.StartsWith("Mouse") || key.StartsWith("Joystick") || key.Contains("Shift") || key.Contains("Control") || key.Contains("Alt") || key.Contains("Command") || key.Contains("Windows")) return "请选择一个普通键盘按键";
-            if (reserved.Contains(key)) return "该按键被游戏或系统占用，请换一个";
-            for (int i = 0; i < keys.Length; i++) if (i != slot && keys[i] == key) return "与另一项修改器快捷键重复";
+            if (key == "None" || key.StartsWith("Mouse") || key.StartsWith("Joystick") || key.Contains("Shift") || key.Contains("Control") || key.Contains("Alt") || key.Contains("Command") || key.Contains("Windows")) return "请换一个普通按键";
+            if (reserved.Contains(key)) return "该键已被游戏或系统占用";
+            for (int i = 0; i < keys.Length; i++) if (i != slot && keys[i] == key) return "与其他快捷键重复";
             return null;
         }
     }

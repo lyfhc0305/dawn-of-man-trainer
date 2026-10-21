@@ -16,7 +16,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Regression checks failed to compile' }
 & $testExe (Join-Path $PSScriptRoot 'DawnOfManTrainer.dll') $GamePath
 if ($LASTEXITCODE -ne 0) { throw 'Offline regression checks failed' }
 $uiTestExe = Join-Path $testOutput 'UiPreview.exe'
-& $compilerPath /nologo /target:exe /optimize+ /codepage:65001 /reference:System.Drawing.dll ('/out:' + $uiTestExe) (Join-Path $PSScriptRoot 'src\TrainerView.cs') (Join-Path $PSScriptRoot 'src\TrainerFeatureView.cs') (Join-Path $PSScriptRoot 'src\TrainerData.cs') (Join-Path $PSScriptRoot 'tests\UiPreview.cs')
+& $compilerPath /nologo /target:exe /optimize+ /codepage:65001 /reference:System.Drawing.dll ('/out:' + $uiTestExe) (Join-Path $PSScriptRoot 'src\TrainerView.cs') (Join-Path $PSScriptRoot 'src\TrainerFeatureView.cs') (Join-Path $PSScriptRoot 'src\TrainerData.cs') (Join-Path $PSScriptRoot 'tests\UiChecks.cs') (Join-Path $PSScriptRoot 'tests\UiPreview.cs')
 if ($LASTEXITCODE -ne 0) { throw 'UI checks failed to compile' }
 & $uiTestExe --fixtures
 if ($LASTEXITCODE -ne 0) { throw 'Offline UI checks failed' }

@@ -16,19 +16,34 @@ internal static class FeatureChecks
         check(Near(ProductionPolicy.ScaleBuildWork(.25f,1),.25f)&&Near(ProductionPolicy.ScaleBuildWork(.25f,20),5),"construction work scales without changing elapsed game time");
         check(ProductionPolicy.ScaleBuildWork(Single.NaN,5)==0&&ProductionPolicy.ScaleBuildWork(Single.PositiveInfinity,5)==0&&ProductionPolicy.ScaleBuildWork(-1,5)==0,"invalid construction work cannot corrupt a build progress value");
         check(ProductionPolicy.ScaleBuildWork(Single.MaxValue,20)==Single.MaxValue&&ProductionPolicy.ScaleBuildWork(1,0)==1,"construction work remains finite and invalid factors preserve 1x");
-        TrainerPreferences p=TrainerPreferences.Defaults();p.Favorites.Add("flint");p.AutoPause=true;p.Keys[0]="Home";p.Quantity="123";p.WindowX=42.25f;p.UiScale=125;
+        TrainerPreferences p=TrainerPreferences.Defaults();p.Favorites.Add("flint");p.AutoPause=true;p.Keys[0]="Home";p.Quantity="123";p.WindowX=42.25f;p.UiScale=125;p.Dock=2;p.Collapsed=true;
         p.Packs[0].Name="冬季=补给\n中文";
         TrainerPreferences copy=TrainerPreferences.Deserialize(p.Serialize());
         check(copy.Favorites.Contains("flint")&&copy.Packs[0].Name==p.Packs[0].Name&&copy.Packs[0].Lines[0].Count==20,"preferences preserve Unicode, favorites and multi-resource packs");
         check(copy.AutoPause&&copy.Keys[0]=="Home"&&copy.Quantity=="123"&&copy.WindowX==42.25f,"preferences preserve shortcuts, quantities and window placement");
         check(copy.UiScale==125&&TrainerPreferences.Deserialize("Version=1\nUiScale=999\n").UiScale==100,"interface size persists and unknown sizes fall back to automatic");
-        float s1080=FeaturePolicy.PanelScale(1920,1080,1180,800,100);
-        check(Near(s1080,1)&&Near(FeaturePolicy.PanelScale(2560,1440,1180,800,100),1.35f)&&Near(FeaturePolicy.PanelScale(3840,2160,1180,800,100),2),"automatic size keeps the panel near 75% of screen height");
-        check(FeaturePolicy.PanelScale(1920,1080,1180,800,125)>s1080&&FeaturePolicy.PanelScale(1920,1080,1180,800,80)<s1080,"interface size preference scales the panel");
+        check(copy.Dock==2&&copy.Collapsed&&TrainerPreferences.Defaults().Dock==0&&!TrainerPreferences.Defaults().Collapsed,"dock side and collapsed rail persist; defaults dock right and expanded");
+        TrainerPreferences badDock=TrainerPreferences.Deserialize("Version=1\nDock=7\nCollapsed=maybe\n");
+        check(badDock.Dock==0&&!badDock.Collapsed,"unknown dock sides and damaged collapse flags fall back to the right-docked drawer");
+        float s1080=FeaturePolicy.DrawerScale(1920,1080,100);
+        check(Near(s1080,1)&&Near(FeaturePolicy.DrawerScale(2560,1440,100),1.3f)&&Near(FeaturePolicy.DrawerScale(3840,2160,100),2),"automatic size keeps the drawer near 58% of screen height");
+        check(Near(FeaturePolicy.DrawerScale(1280,720,100),1)&&Near(FeaturePolicy.DrawerScale(1366,768,100),1),"small screens never shrink the drawer below 1:1");
+        check(FeaturePolicy.DrawerScale(1920,1080,125)>s1080&&FeaturePolicy.DrawerScale(1920,1080,80)<s1080,"interface size preference scales the drawer");
         bool fits=true;
-        foreach(int[] screen in new int[][]{new[]{1280,720},new[]{1366,768},new[]{1920,1080},new[]{2560,1080},new[]{3840,2160}})
-        foreach(int percent in FeaturePolicy.UiScales){float s=FeaturePolicy.PanelScale(screen[0],screen[1],1180,800,percent);fits&=1180*s<=screen[0]-48&&800*s<=screen[1]-48;}
+        foreach(int[] screen in new int[][]{new[]{1280,720},new[]{1366,768},new[]{1920,1080},new[]{2560,1080},new[]{2560,1440},new[]{3840,2160}})
+        foreach(int percent in FeaturePolicy.UiScales){float s=FeaturePolicy.DrawerScale(screen[0],screen[1],percent);fits&=FeaturePolicy.DrawerWidth*s<=screen[0]-24&&FeaturePolicy.DrawerHeight*s<=screen[1]-24;}
         check(fits,"every interface size fits common resolutions");
+        float dx,dy;FeaturePolicy.DockPosition(0,1920,1080,400,620,out dx,out dy);
+        check(Near(dx,1508)&&Near(dy,108),"right dock keeps a 12-unit edge and starts below the top-right status bar");
+        check(dy+620<=1080*.72f,"on 16:9 screens the right dock ends above the game's selected-unit card");
+        FeaturePolicy.DockPosition(1,1920,1080,400,620,out dx,out dy);
+        check(Near(dx,12)&&Near(dy,1080*.28f),"left dock starts below the game's resource bar");
+        FeaturePolicy.DockPosition(0,1280,720,400,620,out dx,out dy);
+        check(Near(dy,72)&&dy+620<=720-12,"short screens keep the docked drawer fully visible");
+        FeaturePolicy.DockPosition(0,1920,1080,56,520,out dx,out dy);
+        check(Near(dx,1920-56-12),"the collapsed rail stays anchored to the docked edge");
+        FeaturePolicy.DockPosition(0,Single.NaN,Single.NaN,400,620,out dx,out dy);
+        check(Near(dx,12)&&Near(dy,12),"invalid screen sizes fall back to a visible dock position");
         check(FeaturePolicy.ClampPanelPosition(-100,1920,1180)==12&&FeaturePolicy.ClampPanelPosition(2000,1920,1180)==728,"dragging beyond left and right edges clamps without recentering");
         check(FeaturePolicy.ClampPanelPosition(0,1080,800)==12&&FeaturePolicy.ClampPanelPosition(400,1080,800)==268&&FeaturePolicy.ClampPanelPosition(80,1080,800)==80,"top and bottom edges clamp while valid window positions stay fixed");
         check(FeaturePolicy.ClampPanelPosition(100,1180,1180)==0&&FeaturePolicy.ClampPanelPosition(100,1180,1200)==0,"window clamp handles a screen with no spare space");
