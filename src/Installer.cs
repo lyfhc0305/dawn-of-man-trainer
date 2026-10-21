@@ -416,7 +416,10 @@ internal static class Installer
     private static int Main(string[] args) { return Run(args); }
     internal static int Run(string[] args)
     {
-        Console.OutputEncoding = Encoding.UTF8;
+        return Run(args, null);
+    }
+    internal static int Run(string[] args, string bundleDirectory)
+    {
         try
         {
             string game = ResolveGamePath(args.FirstOrDefault(a => !a.StartsWith("--")), AppDomain.CurrentDomain.BaseDirectory);
@@ -447,13 +450,13 @@ internal static class Installer
                     Console.WriteLine("已恢复上次未完成操作前的文件，继续执行本次操作。");
                     Step("recovered");
                 }
-                return Operate(managed, state, assembly, plugin, backup, manifest, uninstall, verify);
+                return Operate(managed, state, assembly, plugin, backup, manifest, uninstall, verify, bundleDirectory);
             }
         }
         catch (Exception ex) { Console.Error.WriteLine("操作停止：" + ex.Message); return 1; }
     }
 
-    private static int Operate(string managed, string state, string assembly, string plugin, string backup, string manifest, bool uninstall, bool verify)
+    private static int Operate(string managed, string state, string assembly, string plugin, string backup, string manifest, bool uninstall, bool verify, string bundleDirectory)
     {
             if (!File.Exists(assembly)) throw new Exception("找不到游戏程序集，请指定 DawnOfMan 游戏目录。");
             string currentHash = Hash(assembly);
@@ -473,7 +476,7 @@ internal static class Installer
             if (!installed && File.Exists(backup) && !backupValid) throw new Exception("现有备份校验失败，请先保留并检查该备份。");
             if (!installed && backupValid && backupHash != currentHash)
                 throw new Exception("现有原版备份属于另一游戏版本，请先保留并移走旧备份后重试；未覆盖该备份。");
-            string bundle = AppDomain.CurrentDomain.BaseDirectory;
+            string bundle = bundleDirectory ?? AppDomain.CurrentDomain.BaseDirectory;
 #if INSTALLER_TESTS
             if (TestBundle != null) bundle = TestBundle;
 #endif

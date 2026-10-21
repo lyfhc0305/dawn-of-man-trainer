@@ -1,6 +1,7 @@
 # Local builds and generated release files
 /DawnOfManTrainer.dll
 /Installer.exe
+/release/
 *.pdb
 *.zip
 bin/

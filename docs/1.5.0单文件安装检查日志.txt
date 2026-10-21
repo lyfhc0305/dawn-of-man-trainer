@@ -1,0 +1,31 @@
+﻿PASS standalone folder contains only EXE
+PASS PE uses Windows GUI subsystem (no console on double-click)
+PASS Mono.Cecil embedded
+PASS trainer embedded
+PASS guide embedded
+PASS third-party license embedded
+PASS standalone exit 0: --help
+PASS standalone help writes UTF-8 output
+PASS standalone exit 1: --unknown
+PASS unknown option rejected
+PASS standalone exit 0: --verify <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\测试游戏 Dawn of Man
+PASS pre-install verify does not change game assembly
+PASS pre-install verify creates no state directory
+PASS standalone exit 0: <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\测试游戏 Dawn of Man
+PASS install patches sandbox assembly
+PASS install preserves original backup
+PASS installed plugin equals embedded current build
+PASS standalone exit 0: --verify <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\测试游戏 Dawn of Man
+PASS installed verify checks backup and hooks
+PASS standalone exit 0: <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\测试游戏 Dawn of Man
+PASS reinstall is deterministic
+PASS standalone exit 0: --uninstall <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\测试游戏 Dawn of Man
+PASS uninstall restores exact original
+PASS uninstall removes trainer plugin
+PASS uninstall retains original backup
+PASS standalone exit 1: --verify <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c\不存在的游戏
+PASS invalid game path produces readable failure
+PASS real game assembly remains unchanged
+PASS setup never requires adjacent payload DLLs
+PASS temporary extracted payloads cleaned after successful and failed operations
+Setup checks: 30 passed, 0 failed. Sandbox: <TEMP>\DawnTrainer-setup-checks-7944957116514ff982cbe0d02006bc1c

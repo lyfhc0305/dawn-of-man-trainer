@@ -1,0 +1,12 @@
+﻿PASS: preview creates controls without automatic discovery or a folder dialog
+PASS: valid Chinese path enables game actions
+PASS: executable selection resolves to the game directory
+PASS: editing the path immediately invalidates actions for the old directory
+PASS: invalid directory remains disabled after validation
+PASS: searching disables input while allowing a harmless window close
+PASS: finishing a search restores actions for the validated directory
+PASS: file operation locks actions and enables the close protection state
+PASS: real asynchronous verification completes and restores the UI
+PASS: verification leaves every fixture file and original source assembly unchanged
+PASS: optional real environment discovery finds the supplied game directory
+PASS: 11 installer UI checks (all operations use temporary fixtures).
