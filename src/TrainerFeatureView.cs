@@ -15,261 +15,323 @@ namespace DawnTrainer
         internal readonly List<SupplyLine> Materials = new List<SupplyLine>();
         // ArmedAction: destructive button waiting for its second click. KillVillagers: player villagers in the kill selection.
         internal string ArmedAction, KillVillagers;
+        // Whole seconds left before the runtime expires ArmedAction; 0 when unknown.
+        internal int ArmedSeconds;
         internal string PackSearch = "";
     }
 
     internal static partial class TrainerView
     {
-        private static void DrawMultipliers(UiCanvas c,UiModel m)
+        private static bool StepButton(UiCanvas c, UiRect r, string id, string glyph, bool enabled)
         {
-            m.StorageMultiplier=DrawMultiplierCard(c,m,R(MainX,126,446,190),"storage","仓储容量",m.StorageMultiplier,10,
-                "封闭仓储，不含露天堆场。");
-            m.BuildMultiplier=DrawMultiplierCard(c,m,R(706,126,446,190),"build","建造速度",m.BuildMultiplier,20,
-                "施工提速，材料与搬运照常。");
-            m.CarryMultiplier=DrawMultiplierCard(c,m,R(MainX,332,446,190),"carry","人力搬运",m.CarryMultiplier,10,
-                "普通货物；儿童、重物保持原有上限。");
-            m.TransportMultiplier=DrawMultiplierCard(c,m,R(706,332,446,190),"transport","运输工具容量",m.TransportMultiplier,10,
-                "仅拖板与拖车，犁和巨岩运输不变。");
-            Card(c,R(MainX,538,MainW,70),Surface);
-            Note(c,MainX+20,547,MainW-40,m.Ready?"降低容量保留现货，超额时先用掉或卸下；专用工具、衣物槽不变。":"进入地图后可调整，四项默认 1×；专用工具、衣物槽不变。");
-            Note(c,MainX+20,575,MainW-40,"倍率仅作用于玩家单位；“关闭所有开关”会将这四项恢复为 1×。");
+            bool hover = enabled && c.Hover(r);
+            c.Fill(r, hover ? Raise : Surface, 7);
+            Glyph(c, glyph, r.X + (r.W - 14) / 2, r.Y + (r.H - 14) / 2, 14, enabled ? Muted : "#5B554C", hover ? Raise : Surface);
+            return c.Hit(r, id, enabled);
         }
-        private static int DrawMultiplierCard(UiCanvas c,UiModel m,UiRect r,string key,string title,int value,int maximum,string note)
+
+        // ---------- 选中目标 ----------
+        private static void DrawTargets(UiCanvas c, UiModel m)
         {
-            int current=Math.Max(1,Math.Min(maximum,value)),next=current;
-            string id="multiplier."+key;
-            Card(c,r,Surface);
-            c.Text(R(r.X+20,r.Y+16,210,28),title,17,TextMain,true,0);
-            Note(c,r.X+20,r.Y+49,r.W-40,note);
-            if(Button(c,R(r.X+20,r.Y+86,32,32),id+".minus","−",0,m.Ready&&current>1))next=current-1;
-            if(Button(c,R(r.X+r.W-52,r.Y+86,32,32),id+".plus","+",0,m.Ready&&current<maximum))next=current+1;
-            UiRect slider=R(r.X+72,r.Y+86,r.W-144,32);
-            float raw=current;
-            if(m.Ready)raw=c.Slider(slider,id+".slider",current,1,maximum);
-            else c.Hit(slider,"slider."+id+".slider",false);
-            // The canvas returns a continuous value. Snap every input to a finite integer;
-            // an untouched or invalid slider must not overwrite the other controls.
-            if(!Single.IsNaN(raw)&&!Single.IsInfinity(raw))
+            int buildings = m.BuildTargets + m.RepairTargets + m.ResourceRepairTargets;
+            int tab = Segmented(c, R(X0, BodyY, BodyW, 32), new string[] { "target.tab.0", "target.tab.1" }, new string[] { "单位", "建筑与物品" },
+                new string[] { m.KillTargets.ToString(), buildings.ToString() }, m.TargetTab, true);
+            if (tab >= 0) { m.TargetTab = tab; m.ArmedAction = null; }
+            string who = m.SelectionCount == 0 ? "在面板外点选地图上的人物、动物或建筑"
+                : String.IsNullOrEmpty(m.SelectionName) ? "已选 " + m.SelectionCount + " 个目标"
+                : m.SelectionCount == 1 ? "已选 " + Short(c, m.SelectionName, 220, 12) : "已选 " + Short(c, m.SelectionName, 170, 12) + " 等 " + m.SelectionCount + " 个目标";
+            c.Text(R(X0, 138, BodyW, 18), who, 12, m.SelectionCount == 0 ? Quiet : Muted, false, 0);
+            if (m.TargetTab == 1) { DrawMaintenance(c, m); return; }
+
+            c.Fill(R(X0, 162, BodyW, 140), Surface, 11);
+            if (m.RescueTargets == 0)
             {
-                int snapped=(int)Math.Round(Math.Max(1,Math.Min(maximum,raw)),MidpointRounding.AwayFromZero);
-                if(snapped!=current)next=snapped;
+                c.Text(R(X0, 206, BodyW, 20), "选中玩家人物或家畜后显示生存状态", 13, Muted, false, 1);
+                c.Text(R(X0, 230, BodyW, 18), "多选时显示平均值", 12, Quiet, false, 1);
             }
-            int[] presets=maximum==20?new int[]{1,2,5,10,20}:new int[]{1,2,5,10};
-            float width=(r.W-40-(presets.Length-1)*10)/presets.Length;
-            for(int i=0;i<presets.Length;i++)
-                if(Button(c,R(r.X+20+i*(width+10),r.Y+142,width,32),id+"."+presets[i],presets[i]+"×",current==presets[i]?1:0,m.Ready))next=presets[i];
-            float trackX=slider.X,trackW=slider.W,ratio=(float)(next-1)/(maximum-1);
-            c.Fill(R(trackX,r.Y+99,trackW,6),m.Ready?"#363C48":"#2C3039",3);
-            if(ratio>0)c.Fill(R(trackX,r.Y+99,trackW*ratio,6),m.Ready?Accent:"#505767",3);
-            c.Fill(R(trackX+trackW*ratio-8,r.Y+94,16,16),m.Ready?"#DEE5FF":"#727B8E",8);
-            c.Text(R(r.X+64,r.Y+120,48,16),"1×",13,Quiet,false,0);
-            c.Text(R(r.X+r.W-112,r.Y+120,48,16),maximum+"×",13,Quiet,false,2);
-            c.Text(R(r.X+248,r.Y+14,r.W-268,30),"当前 "+next+"×",22,m.Ready?Accent:Quiet,true,2);
-            if(next!=current)m.Emit(id,next.ToString());
-            return next;
-        }
-        private static string KeyName(string key) { return key=="Insert"?"Ins":key=="Delete"?"Del":key=="PageUp"?"PgUp":key=="PageDown"?"PgDn":key; }
-        private static void Note(UiCanvas c,float x,float y,float w,string text)
-        { Label(c,x,y,w,24,text,13,Muted); }
-        private static void DrawTargets(UiCanvas c,UiModel m)
-        {
-            if(Chip(c,R(MainX,126,136,34),"target.tab.0","人物与动物",m.TargetTab==0))m.TargetTab=0;
-            if(Chip(c,R(MainX+146,126,136,34),"target.tab.1","建造与维护",m.TargetTab==1))m.TargetTab=1;
-            c.Text(R(820,126,332,34),"已选择 "+m.SelectionCount+" 个目标",14,Muted,false,2);
-            if(m.TargetTab==1){DrawMaintenance(c,m);return;}
-            Card(c,R(MainX,180,560,374),Surface);
-            c.Text(R(MainX+20,199,510,28),"选中单位的生存状态",18,TextMain,true,0);
-            Note(c,MainX+20,235,510,m.RescueTargets==0?"在面板外点选玩家人物或家畜。":"显示 "+m.RescueTargets+" 个存活玩家单位的平均状态。");
-            for(int i=0;i<7;i++)
-            {
-                float x=MainX+20+(i%2)*268,y=280+(i/2)*62;float value=m.TargetStats[i];
-                Label(c,x,y,150,24,StatNames[i],15,TextMain);
-                c.Text(R(x+155,y,85,24),value<0?"—":Math.Round(value*100)+"%",14,value>=0&&value<.25f?"#F0A1AB":Muted,false,2);
-                c.Fill(R(x,y+32,240,5),"#353C48",2);
-                if(value>=0)c.Fill(R(x,y+32,240*Math.Max(0,Math.Min(1,value)),5),value<.25f?"#E6A0A9":Accent,2);
-            }
-            Card(c,R(820,180,332,178),Surface);c.Text(R(840,199,292,28),"恢复健康",17,TextMain,true,0);
-            Note(c,840,237,292,"只恢复选中玩家单位的健康值。");
-            if(Button(c,R(840,291,292,43),"rescue.health","恢复 "+m.RescueTargets+" 个单位",1,m.RescueTargets>0))m.Emit("rescue.health","");
-            Card(c,R(820,374,332,180),Surface);c.Text(R(840,393,292,28),"补满生存状态",17,TextMain,true,0);
-            Note(c,840,431,292,"恢复现有属性，疾病与年龄不变。");
-            if(Button(c,R(840,487,292,43),"rescue.all","补满 "+m.RescueTargets+" 个单位",0,m.RescueTargets>0))m.Emit("rescue.all","");
-            Card(c,R(MainX,574,446,154),Surface);c.Text(R(MainX+20,593,300,28),"快速驯化",17,TextMain,true,0);
-            Note(c,MainX+20,629,406,Short(c,m.TameTargets>0?m.TameTargets+" 只符合原生捕捉条件，将转为对应家畜。":m.TameReason,406,13));
-            Note(c,MainX+20,672,226,"沿用原生转换，跳过忙碌动物");
-            if(Button(c,R(MainX+266,664,160,42),"tame","驯化 "+m.TameTargets+" 只动物",1,m.TameTargets>0))m.Emit("tame","");
-            TargetActionCard(c,m,R(706,574,446,154),true);
-        }
-        // Quick build and kill sit with the other selected-target actions, each with its hotkey switch.
-        private static void TargetActionCard(UiCanvas c,UiModel m,UiRect r,bool kill)
-        {
-            Card(c,r,Surface);c.Text(R(r.X+20,r.Y+19,180,28),kill?"杀死选中单位":"快速完成建造",17,TextMain,true,0);
-            int targets=kill?m.KillTargets:m.BuildTargets;bool villagers=kill&&targets>0&&!String.IsNullOrEmpty(m.KillVillagers);
-            c.Text(R(r.X+194,r.Y+22,r.W-214,24),targets==0?"请先选择目标":villagers?Short(c,"含村民 "+m.KillVillagers,r.W-214,13):targets+" 个可操作目标",13,villagers?"#F2AAB4":Muted,false,2);
-            Note(c,r.X+20,r.Y+55,r.W-40,kill?"立即死亡，结果随存档保存；含村民时需再次确认。":"无需材料立即完工，并计入原生建造奖励。");
-            Label(c,r.X+20,r.Y+98,140,24,"启用 "+KeyName(m.Preferences.Keys[kill?1:0])+" 快捷键",13,Muted);
-            if(kill)m.KillHotkey=Switch(c,R(r.X+164,r.Y+99,40,23),"kill.hotkey",m.KillHotkey);
-            else m.BuildHotkey=Switch(c,R(r.X+164,r.Y+99,40,23),"build.hotkey",m.BuildHotkey);
-            string label=targets==0?"选择目标后可用":kill&&m.ArmedAction=="kill"?"再次点击确认杀死":kill?"杀死 "+targets+" 个单位":"完成 "+targets+" 个建造";
-            bool clicked=Button(c,R(r.X+r.W-180,r.Y+90,160,42),kill?"kill":"complete",label,kill?2:0,targets>0);
-            if(kill?Confirmed(m,"kill",villagers,clicked):clicked)m.Emit(kill?"kill":"complete","");
-        }
-        private static void DrawMaintenance(UiCanvas c,UiModel m)
-        {
-            Card(c,R(MainX,180,560,374),Surface);c.Text(R(MainX+20,199,510,28),"建筑尚未交付的材料",18,TextMain,true,0);
-            Note(c,MainX+20,235,510,"只统计玩家未完工、未回收的建造目标。");
-            if(m.Materials.Count==0)
-            {c.Text(R(MainX+20,332,520,32),"没有需要补给的材料",18,Muted,false,1);Note(c,MainX+74,379,440,"在面板外点选未完工建筑后显示。");}
             else
             {
-                UiRect viewport=R(MainX+20,279,520,251);m.MaterialScroll=c.BeginScroll(viewport,m.MaterialScroll,m.Materials.Count*44);
-                for(int i=0;i<m.Materials.Count;i++)
+                c.Text(R(X0 + 12, 168, BodyW - 24, 16), "平均状态 · " + m.RescueTargets + " 个存活玩家单位", 12, Quiet, false, 0);
+                float colW = (BodyW - 24 - 16) / 2f;
+                for (int i = 0; i < 7; i++)
                 {
-                    SupplyLine line=m.Materials[i];UiItem item=m.Resources.Find(r=>r.Id==line.Id);float y=i*44;
-                    if(item!=null&&item.Image!=null)c.Image(R(0,y+4,30,30),item.Image);
-                    Label(c,44,y+4,340,30,item==null?line.Id:item.Name,15,TextMain);
-                    c.Text(R(396,y+4,100,30),"× "+line.Count,15,Accent,false,2);Rule(c,0,y+42,496);
+                    float x = X0 + 12 + (i % 2) * (colW + 16), y = 190 + (i / 2) * 27, value = m.TargetStats[i];
+                    bool low = value >= 0 && value < .25f;
+                    Glyph(c, StatIcons[i], x, y + 2, 14, low ? Danger : Quiet, Surface);
+                    c.Text(R(x + 20, y, 60, 18), StatNames[i], 12, Muted, false, 0);
+                    c.Text(R(x + colW - 60, y, 60, 18), value < 0 ? "—" : Math.Round(value * 100) + "%", 12, low ? Danger : TextMain, false, 2);
+                    c.Fill(R(x + 20, y + 20, colW - 20, 3), Raise, 1.5f);
+                    if (value >= 0) c.Fill(R(x + 20, y + 20, (colW - 20) * Math.Max(0, Math.Min(1, value)), 3), low ? Danger : Accent, 1.5f);
+                }
+            }
+            if (ActionRow(c, 306, "heart", "恢复健康", "只恢复选中玩家单位的健康值", null, "rescue.health", "恢复 " + m.RescueTargets, 1, m.RescueTargets > 0, false)) m.Emit("rescue.health", "");
+            if (ActionRow(c, 358, "refill", "补满生存状态", "恢复现有属性，疾病与年龄不变", null, "rescue.all", "补满 " + m.RescueTargets, 0, m.RescueTargets > 0, false)) m.Emit("rescue.all", "");
+            if (ActionRow(c, 410, "paw", "驯化", m.TameTargets > 0 ? m.TameTargets + " 只符合原生捕捉条件" : m.TameReason, null, "tame", "驯化 " + m.TameTargets, 0, m.TameTargets > 0, false)) m.Emit("tame", "");
+            bool villagers = m.KillTargets > 0 && !String.IsNullOrEmpty(m.KillVillagers);
+            // Naming the villagers matters more than the confirmation hint, which the button itself shows.
+            string note = m.KillTargets == 0 ? "选择人物或动物后可用" : villagers ? "含村民 " + m.KillVillagers : "立即死亡，结果随存档保存";
+            bool armed = m.ArmedAction == "kill";
+            bool clicked = ActionRow(c, 462, "skull", "杀死选中单位", note, villagers ? Danger : null, "kill", armed ? ConfirmLabel(m, "确认杀死") : "杀死 " + m.KillTargets, armed ? 3 : 2, m.KillTargets > 0, true);
+            if (Confirmed(m, "kill", villagers, clicked)) m.Emit("kill", "");
+        }
+
+        private static void DrawMaintenance(UiCanvas c, UiModel m)
+        {
+            long total = 0; foreach (SupplyLine line in m.Materials) total += line.Count;
+            c.Fill(R(X0, 162, BodyW, 140), Surface, 11);
+            c.Text(R(X0 + 12, 168, BodyW - 24, 16), m.Materials.Count == 0 ? "尚未交付的材料" : "尚未交付的材料 · 共 " + total + " 件", 12, Quiet, false, 0);
+            if (m.Materials.Count == 0)
+            {
+                c.Text(R(X0, 212, BodyW, 20), "没有需要补给的材料", 13, Muted, false, 1);
+                c.Text(R(X0, 236, BodyW, 18), "在面板外点选未完工的玩家建筑后显示", 12, Quiet, false, 1);
+            }
+            else
+            {
+                UiRect view = R(X0 + 12, 188, BodyW - 24, 108); bool scrolls = m.Materials.Count * 28 > view.H; float rowW = view.W - (scrolls ? 14 : 0);
+                m.MaterialScroll = c.BeginScroll(view, m.MaterialScroll, m.Materials.Count * 28);
+                for (int i = 0; i < m.Materials.Count; i++)
+                {
+                    SupplyLine line = m.Materials[i]; UiItem item = m.Resources.Find(r => r.Id == line.Id); float y = i * 28;
+                    if (item != null && item.Image != null) c.Image(R(0, y + 3, 22, 22), item.Image);
+                    c.Text(R(30, y, rowW - 110, 28), item == null ? line.Id : item.Name, 13, TextMain, false, 0);
+                    c.Text(R(rowW - 80, y, 80, 28), "× " + line.Count, 13, AccentInk, false, 2);
+                    if (i < m.Materials.Count - 1) c.Line(0, y + 28, rowW, y + 28, Raise, 1);
                 }
                 c.EndScroll();
             }
-            Card(c,R(820,180,332,178),Surface);c.Text(R(840,199,292,28),"修缮建筑",17,TextMain,true,0);
-            Note(c,840,237,292,"一次修复选中且已建成的玩家建筑。");
-            if(Button(c,R(840,291,292,43),"repair.building","修复 "+m.RepairTargets+" 个建筑",0,m.RepairTargets>0))m.Emit("repair.building","");
-            Card(c,R(820,374,332,180),Surface);c.Text(R(840,393,292,28),"恢复工具与衣物耐久",17,TextMain,true,0);
-            Note(c,840,431,292,"仅处理直接选中的工具或衣物。");
-            if(Button(c,R(840,487,292,43),"repair.resource","恢复 "+m.ResourceRepairTargets+" 件耐久",0,m.ResourceRepairTargets>0))m.Emit("repair.resource","");
-            Card(c,R(MainX,574,446,154),Surface);c.Text(R(MainX+20,593,300,28),"按缺料清单补给",17,TextMain,true,0);
-            Note(c,MainX+20,629,406,"在各建筑附近分批生成，村民继续搬运与建造。");
-            Note(c,MainX+20,672,226,"含运输中材料，重复补给会多生成");
-            long total=0;foreach(SupplyLine line in m.Materials)total+=line.Count;
-            if(Button(c,R(MainX+266,664,160,42),"supply.building",m.Busy?"正在生成…":"补齐缺料 · "+total+" 件",1,m.Materials.Count>0&&!m.Busy&&total<=FeaturePolicy.MaximumTotal))m.Emit("supply.building","");
-            TargetActionCard(c,m,R(706,574,446,154),false);
+            bool tooMany = total > FeaturePolicy.MaximumTotal;
+            if (ActionRow(c, 306, "spawn", "补齐缺料", tooMany ? "超过一次 5000 件的上限" : "建筑旁分批生成，含运输中材料", tooMany ? Danger : null,
+                "supply.building", m.Busy ? "生成中…" : "补给 " + total + " 件", 1, m.Materials.Count > 0 && !m.Busy && !tooMany, false)) m.Emit("supply.building", "");
+            if (ActionRow(c, 358, "hammer", "快速完成建造", "无需材料立即完工，计入原生奖励", null, "complete", "完成 " + m.BuildTargets, 0, m.BuildTargets > 0, false)) m.Emit("complete", "");
+            if (ActionRow(c, 410, "house", "修缮建筑", "修复选中且已建成的玩家建筑", null, "repair.building", "修复 " + m.RepairTargets, 0, m.RepairTargets > 0, false)) m.Emit("repair.building", "");
+            if (ActionRow(c, 462, "reset", "恢复耐久", "只处理直接选中的工具或衣物", null, "repair.resource", "恢复 " + m.ResourceRepairTargets, 0, m.ResourceRepairTargets > 0, true)) m.Emit("repair.resource", "");
         }
-        private static void DrawVisitors(UiCanvas c,UiModel m)
+
+        private static void DrawVisitors(UiCanvas c, UiModel m, float y)
         {
-            Card(c,R(MainX,610,446,118),Surface);c.Text(R(MainX+20,625,240,25),"邀请移民",17,TextMain,true,0);
-            Note(c,MainX+20,663,236,m.MigrantCount>0?"已有 "+m.MigrantCount+" 名移民在途中":"住房余量："+m.HousingFree+" 人");
-            if(Button(c,R(MainX+277,659,149,43),"invite.migrant","邀请一批移民",0,m.HousingFree>0&&m.MigrantCount==0))m.Emit("invite.migrant","");
-            Card(c,R(706,610,446,118),Surface);c.Text(R(726,625,240,25),"邀请商人",17,TextMain,true,0);
-            Note(c,726,663,236,m.TraderCount>0?"地图上已有商队":"从地图边缘前来");
-            if(Button(c,R(983,659,149,43),"invite.trader","邀请商人",0,m.TraderCount==0))m.Emit("invite.trader","");
+            Section(c, y, "访客", null, null, false);
+            if (ActionRow(c, y + 18, "people", "邀请移民", m.MigrantCount > 0 ? "已有 " + m.MigrantCount + " 名移民在途中" : "住房余量 " + m.HousingFree + " 人", null,
+                "invite.migrant", "邀请", 0, m.HousingFree > 0 && m.MigrantCount == 0, false)) m.Emit("invite.migrant", "");
+            if (ActionRow(c, y + 70, "bag", "邀请商人", m.TraderCount > 0 ? "地图上已有商队" : "从地图边缘前来，走原生来访流程", null,
+                "invite.trader", "邀请", 0, m.TraderCount == 0, true)) m.Emit("invite.trader", "");
         }
-        private static void AddPackItem(UiModel m,UiItem item,string quantity,bool fromCatalog)
+
+        // ---------- 效率倍率 ----------
+        private static void DrawMultipliers(UiCanvas c, UiModel m)
         {
-            if(m.Preferences.Packs.Count==0)m.Preferences.Packs.Add(new SupplyPack());
-            m.ActivePack=Math.Max(0,Math.Min(m.Preferences.Packs.Count-1,m.ActivePack));SupplyPack pack=m.Preferences.Packs[m.ActivePack];
-            SupplyLine existing=pack.Lines.Find(l=>l.Id==item.Id);int amount; if(!Int32.TryParse(quantity,out amount)||amount<1||amount>1000)return;
-            if(existing!=null)
+            c.Text(R(X0, BodyY - 2, BodyW - 70, 20), m.Ready ? "仅作用于玩家单位，切换地图后恢复 1×" : "进入地图后可调整，四项默认 1×", 12, Quiet, false, 0);
+            bool any = AnyMultiplier(m); float lw = c.Measure("全部 1×", 12, false) + 8; UiRect all = R(Right - lw, BodyY - 4, lw, 24);
+            c.Text(all, "全部 1×", 12, m.Ready && any ? Accent : Quiet, false, 2);
+            if (c.Hit(all, "efficiency.reset", m.Ready && any))
+            {
+                if (m.StorageMultiplier != 1) { m.StorageMultiplier = 1; m.Emit("multiplier.storage", "1"); }
+                if (m.BuildMultiplier != 1) { m.BuildMultiplier = 1; m.Emit("multiplier.build", "1"); }
+                if (m.CarryMultiplier != 1) { m.CarryMultiplier = 1; m.Emit("multiplier.carry", "1"); }
+                if (m.TransportMultiplier != 1) { m.TransportMultiplier = 1; m.Emit("multiplier.transport", "1"); }
+            }
+            m.StorageMultiplier = MultiplierBlock(c, m, 126, "storage", "仓储容量", m.StorageMultiplier, 10, "已建成的封闭仓储，不含露天堆场", false);
+            m.BuildMultiplier = MultiplierBlock(c, m, 226, "build", "建造速度", m.BuildMultiplier, 20, "施工进度提速，材料交付与搬运照常", false);
+            m.CarryMultiplier = MultiplierBlock(c, m, 326, "carry", "人力搬运", m.CarryMultiplier, 10, "成年村民的普通货物；儿童与重物不变", false);
+            m.TransportMultiplier = MultiplierBlock(c, m, 426, "transport", "运输工具容量", m.TransportMultiplier, 10, "仅拖板与拖车；犁和巨岩运输不变", true);
+            c.Text(R(X0, 540, BodyW, 20), "降低容量保留现货，超额只出不进；装备槽不变", 12, Quiet, false, 0);
+        }
+
+        private static int MultiplierBlock(UiCanvas c, UiModel m, float y, string key, string title, int value, int maximum, string note, bool last)
+        {
+            int current = Math.Max(1, Math.Min(maximum, value)), next = current;
+            string id = "multiplier." + key;
+            c.Text(R(X0, y, BodyW - 64, 22), title, 14, TextMain, true, 0);
+            c.Text(R(X0, y + 23, BodyW, 16), Short(c, note, BodyW, 12), 12, Quiet, false, 0);
+            UiRect minus = R(X0, y + 46, 28, 28), plus = R(Right - 28, y + 46, 28, 28), slider = R(X0 + 38, y + 46, BodyW - 76, 28);
+            if (StepButton(c, minus, id + ".minus", "minus", m.Ready && current > 1)) next = current - 1;
+            if (StepButton(c, plus, id + ".plus", "plus", m.Ready && current < maximum)) next = current + 1;
+            float raw = current;
+            if (m.Ready) raw = c.Slider(slider, id + ".slider", current, 1, maximum);
+            else c.Hit(slider, "slider." + id + ".slider", false);
+            // The canvas returns a continuous value. Snap every input to a finite integer;
+            // an untouched or invalid slider must not overwrite the other controls.
+            if (!Single.IsNaN(raw) && !Single.IsInfinity(raw))
+            {
+                int snapped = (int)Math.Round(Math.Max(1, Math.Min(maximum, raw)), MidpointRounding.AwayFromZero);
+                if (snapped != current) next = snapped;
+            }
+            float ratio = (float)(next - 1) / (maximum - 1);
+            c.Fill(R(slider.X, y + 58, slider.W, 4), m.Ready ? Raise : Surface, 2);
+            if (ratio > 0) c.Fill(R(slider.X, y + 58, slider.W * ratio, 4), m.Ready ? Accent : "#4A4F66", 2);
+            c.Fill(R(slider.X + slider.W * ratio - 7, y + 53, 14, 14), m.Ready ? Knob : "#6E6A62", 7);
+            c.Text(R(slider.X, y + 76, 40, 14), "1×", 12, Quiet, false, 0);
+            c.Text(R(slider.X + slider.W - 40, y + 76, 40, 14), maximum + "×", 12, Quiet, false, 2);
+            c.Text(R(Right - 56, y, 56, 22), next + "×", next == 1 ? 15 : 17, !m.Ready || next == 1 ? Quiet : AccentInk, next != 1, 2);
+            if (!last) c.Line(X0, y + 96, Right, y + 96, Divider, 1);
+            if (next != current) m.Emit(id, next.ToString());
+            return next;
+        }
+
+        // ---------- 物资包 ----------
+        private static void AddPackItem(UiModel m, UiItem item, string quantity, bool fromCatalog)
+        {
+            if (m.Preferences.Packs.Count == 0) m.Preferences.Packs.Add(new SupplyPack());
+            m.ActivePack = Math.Max(0, Math.Min(m.Preferences.Packs.Count - 1, m.ActivePack)); SupplyPack pack = m.Preferences.Packs[m.ActivePack];
+            SupplyLine existing = pack.Lines.Find(l => l.Id == item.Id); int amount; if (!Int32.TryParse(quantity, out amount) || amount < 1 || amount > 1000) return;
+            if (existing != null)
             {
                 // Unparseable or nonpositive text is an empty amount when adding again. Check
                 // the remaining capacity before addition, including malformed huge ints.
-                int current=Math.Max(0,existing.Count);
-                if(current>1000-amount){m.Emit("pack.notice","该物资包中的单项数量最多 1000");return;}
-                existing.Quantity=(current+amount).ToString();
+                int current = Math.Max(0, existing.Count);
+                if (current > 1000 - amount) { m.Emit("pack.notice", "该物资包中的单项数量最多 1000"); return; }
+                existing.Quantity = (current + amount).ToString();
             }
-            else if(pack.Lines.Count<64)pack.Lines.Add(new SupplyLine{Id=item.Id,Quantity=amount.ToString()});
-            else{m.Emit("pack.notice","每个物资包最多 64 种资源");return;}
-            m.Emit("pack.notice",fromCatalog?"已加入物资包："+pack.Name+"；到物资包标签编辑或执行":"已向「"+pack.Name+"」加入 "+item.Name+" × "+amount);
+            else if (pack.Lines.Count < 64) pack.Lines.Add(new SupplyLine { Id = item.Id, Quantity = amount.ToString() });
+            else { m.Emit("pack.notice", "每个物资包最多 64 种资源"); return; }
+            m.Emit("pack.notice", fromCatalog ? "已加入物资包「" + pack.Name + "」" : "已加入 " + item.Name + " × " + amount);
         }
         // Items for the pack editor's own search; the first three matches are offered.
         private static List<UiItem> PackMatches(UiModel m)
         {
-            List<UiItem> found=new List<UiItem>();string query=(m.PackSearch??"").Trim();if(query.Length==0)return found;
-            foreach(UiItem item in m.Resources)
+            List<UiItem> found = new List<UiItem>(); string query = (m.PackSearch ?? "").Trim(); if (query.Length == 0) return found;
+            foreach (UiItem item in m.Resources)
             {
-                if(item.Name.IndexOf(query,StringComparison.OrdinalIgnoreCase)<0&&item.Id.IndexOf(query,StringComparison.OrdinalIgnoreCase)<0)continue;
-                found.Add(item);if(found.Count==3)break;
+                if (item.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0 && item.Id.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                found.Add(item); if (found.Count == 3) break;
             }
             return found;
         }
-        private static string PackError(UiModel m,SupplyPack pack,out int total)
+        private static string PackError(UiModel m, SupplyPack pack, out int total)
         {
-            total=0;HashSet<string> available=new HashSet<string>();foreach(UiItem item in m.Resources)available.Add(item.Id);
-            try{total=FeaturePolicy.ValidateSupply(pack.Lines,available);return null;}catch(InvalidOperationException ex){return ex.Message;}
+            total = 0; HashSet<string> available = new HashSet<string>(); foreach (UiItem item in m.Resources) available.Add(item.Id);
+            try { total = FeaturePolicy.ValidateSupply(pack.Lines, available); return null; } catch (InvalidOperationException ex) { return ex.Message; }
         }
-        private static void DrawPacks(UiCanvas c,UiModel m)
+        private static void InputFrame(UiCanvas c, UiRect r, bool focused, bool invalid, float radius)
         {
-            Card(c,R(MainX,126,274,605),Surface);c.Text(R(MainX+18,143,238,28),"我的物资包",17,TextMain,true,0);
-            Note(c,MainX+18,180,238,"选择清单，编辑后自动保存。");
-            m.PackListScroll=c.BeginScroll(R(MainX+14,220,246,410),m.PackListScroll,m.Preferences.Packs.Count*62);
-            for(int i=0;i<m.Preferences.Packs.Count;i++)
+            c.Fill(r, invalid ? DangerLine : focused ? SelLine : Surface, radius);
+            c.Fill(r.Inset(1), InputFill, radius - 1);
+        }
+
+        private static void DrawPacks(UiCanvas c, UiModel m)
+        {
+            int count = m.Preferences.Packs.Count;
+            Section(c, 140, "我的物资包 · " + count + "/16", null, null, false);
+            bool armed = m.ArmedAction == "pack.delete"; string deleteLabel = armed ? ConfirmLabel(m, "确认删除") : "删除";
+            float dw = c.Measure(deleteLabel, 12, false) + 8, nw = c.Measure("新建", 12, false) + 8;
+            UiRect remove = R(Right - dw, 136, dw, 24), add = R(remove.X - 12 - nw, 136, nw, 24);
+            c.Text(add, "新建", 12, count < 16 ? Accent : Quiet, false, 2);
+            if (c.Hit(add, "pack.new", count < 16))
+            { m.Preferences.Packs.Add(new SupplyPack { Name = "新物资包 " + (count + 1) }); m.ActivePack = m.Preferences.Packs.Count - 1; m.PackScroll = 0; m.PackListScroll = 10000; m.ArmedAction = null; }
+            c.Text(remove, deleteLabel, 12, count > 0 ? Danger : Quiet, false, 2);
+            if (Confirmed(m, "pack.delete", true, c.Hit(remove, "pack.delete", count > 0)))
+            { m.Preferences.Packs.RemoveAt(Math.Max(0, Math.Min(m.ActivePack, m.Preferences.Packs.Count - 1))); m.ActivePack = 0; }
+            count = m.Preferences.Packs.Count;
+            if (count == 0)
             {
-                SupplyPack entry=m.Preferences.Packs[i];UiRect r=R(0,i*62,228,54);
-                c.Fill(r,i==m.ActivePack?"#2A334A":"#242830",8);Label(c,12,r.Y+5,204,24,Short(c,entry.Name,204,14),14,i==m.ActivePack?"#D4DDFF":TextMain);
-                Label(c,12,r.Y+28,204,20,entry.Lines.Count+" 种资源",13,Muted);
-                if(c.Hit(r,"pack.select."+i,true)){m.ActivePack=i;m.PackScroll=0;m.ArmedAction=null;m.Emit("focus.clear","");}
+                c.Text(R(X0, 260, BodyW, 24), "创建你的第一个物资包", 15, TextMain, true, 1);
+                c.Text(R(X0, 288, BodyW, 18), "点右上角“新建”，再搜索物品加入", 12, Muted, false, 1);
+                return;
+            }
+            c.Fill(R(X0, 160, BodyW, 86), Surface, 10);
+            UiRect listView = R(X0 + 4, 164, BodyW - 8, 78); bool listScrolls = count * 28 - 2 > listView.H; float listW = listView.W - (listScrolls ? 14 : 0);
+            m.PackListScroll = c.BeginScroll(listView, m.PackListScroll, count * 28 - 2);
+            for (int i = 0; i < count; i++)
+            {
+                SupplyPack entry = m.Preferences.Packs[i]; UiRect r = R(0, i * 28, listW, 26); bool on = i == m.ActivePack;
+                if (on) c.Fill(r, SelFill, 7); else if (c.Hover(r)) c.Fill(r, Raise, 7);
+                c.Text(R(10, r.Y, listW - 90, 26), Short(c, entry.Name, listW - 90, 13), 13, on ? AccentInk : TextMain, false, 0);
+                c.Text(R(listW - 80, r.Y, 72, 26), entry.Lines.Count + " 种", 12, Quiet, false, 2);
+                if (c.Hit(r, "pack.select." + i, true)) { m.ActivePack = i; m.PackScroll = 0; m.ArmedAction = null; m.Emit("focus.clear", ""); }
             }
             c.EndScroll();
-            if(Button(c,R(MainX+18,648,238,32),"pack.new","新建物资包",0,m.Preferences.Packs.Count<16))
-            {m.Preferences.Packs.Add(new SupplyPack{Name="新物资包 "+(m.Preferences.Packs.Count+1)});m.ActivePack=m.Preferences.Packs.Count-1;m.PackScroll=0;m.PackListScroll=10000;m.ArmedAction=null;}
-            bool deleteArmed=m.ArmedAction=="pack.delete";
-            if(Confirmed(m,"pack.delete",true,Button(c,R(MainX+18,691,238,25),"pack.delete",deleteArmed?"再次点击确认删除":"删除当前物资包",2,m.Preferences.Packs.Count>0)))
-            {m.Preferences.Packs.RemoveAt(Math.Max(0,Math.Min(m.ActivePack,m.Preferences.Packs.Count-1)));m.ActivePack=0;}
-            Card(c,R(534,126,618,605),Surface);
-            if(m.Preferences.Packs.Count==0)
-            {c.Text(R(554,330,578,34),"创建你的第一个物资包",20,TextMain,true,1);c.Text(R(554,379,578,26),"新建后可直接搜索物品加入，或在资源页加入。",14,Muted,false,1);return;}
-            m.ActivePack=Math.Max(0,Math.Min(m.ActivePack,m.Preferences.Packs.Count-1));SupplyPack pack=m.Preferences.Packs[m.ActivePack];
-            c.Fill(R(554,144,380,38),c.Focused("pack.name")?Accent:Border,8);c.Fill(R(555,145,378,36),"#181B21",7);
-            pack.Name=c.Input(R(564,149,360,28),"pack.name",pack.Name,24,false);
-            Note(c,954,149,178,"名称可直接编辑");
-            c.Fill(R(554,190,250,32),c.Focused("pack.search")?Accent:Border,8);c.Fill(R(555,191,248,30),"#181B21",7);
-            m.PackSearch=c.Input(R(562,193,234,26),"pack.search",m.PackSearch,30,false);
-            if(String.IsNullOrEmpty(m.PackSearch))Label(c,566,193,226,26,"搜索物品加入本包",13,Quiet);
-            List<UiItem> matches=PackMatches(m);
-            if(matches.Count==0)Note(c,818,194,314,m.Resources.Count==0?"进入地图后可搜索物品":String.IsNullOrEmpty(m.PackSearch)?"输入名称或 ID，点击结果加入 10 件":"没有找到匹配项");
-            for(int i=0;i<matches.Count;i++)if(Chip(c,R(818+i*106,190,100,32),"pack.pick."+matches[i].Id,"+ "+Short(c,matches[i].Name,74,14),false))AddPackItem(m,matches[i],"10",false);
-            Rule(c,554,230,578);
-            m.PackScroll=c.BeginScroll(R(554,242,578,330),m.PackScroll,pack.Lines.Count*50);
-            for(int i=0;i<pack.Lines.Count;i++)
+
+            m.ActivePack = Math.Max(0, Math.Min(m.ActivePack, count - 1)); SupplyPack pack = m.Preferences.Packs[m.ActivePack];
+            // A pencil and a placeholder mark the name as editable.
+            bool naming = c.Focused("pack.name");
+            InputFrame(c, R(X0, 254, BodyW, 32), naming, false, 8);
+            pack.Name = c.Input(R(X0 + 10, 256, BodyW - 44, 28), "pack.name", pack.Name, 24, false);
+            if (String.IsNullOrEmpty(pack.Name)) c.Text(R(X0 + 14, 254, BodyW - 50, 32), "输入物资包名称", 13, Quiet, false, 0);
+            Glyph(c, "pencil", Right - 26, 263, 14, naming ? Accent : Quiet, InputFill);
+            UiRect search = R(X0, 294, BodyW, 30);
+            if (c.Focused("pack.search")) { c.Fill(search, SelLine, 8); c.Fill(search.Inset(1), Surface, 7); } else c.Fill(search, Surface, 8);
+            Glyph(c, "search", X0 + 9, 301, 15, Quiet, Surface);
+            m.PackSearch = c.Input(R(X0 + 30, 295, BodyW - 40, 28), "pack.search", m.PackSearch, 30, false);
+            if (String.IsNullOrEmpty(m.PackSearch)) c.Text(R(X0 + 34, 294, BodyW - 44, 30), "搜索物品加入本包", 13, Quiet, false, 0);
+            List<UiItem> matches = PackMatches(m);
+            if (matches.Count == 0)
+                c.Text(R(X0, 330, BodyW, 24), m.Resources.Count == 0 ? "进入地图后可搜索物品" : String.IsNullOrEmpty(m.PackSearch) ? "输入名称或 ID，点击结果加入 10 件" : "没有找到匹配项", 12, Quiet, false, 0);
+            float cw = (BodyW - 12) / 3f;
+            for (int i = 0; i < matches.Count; i++)
+                if (Choice(c, R(X0 + i * (cw + 6), 330, cw, 24), "pack.pick." + matches[i].Id, "+ " + Short(c, matches[i].Name, cw - 24, 12), false, true, 12)) AddPackItem(m, matches[i], "10", false);
+
+            UiRect view = R(X0, 362, BodyW, 124); bool scrolls = pack.Lines.Count * 40 > view.H; float rowW = view.W - (scrolls ? 14 : 0);
+            m.PackScroll = c.BeginScroll(view, m.PackScroll, pack.Lines.Count * 40);
+            for (int i = 0; i < pack.Lines.Count; i++)
             {
-                SupplyLine line=pack.Lines[i];UiItem item=m.Resources.Find(r=>r.Id==line.Id);float y=i*50;
-                bool known=item!=null||m.Resources.Count==0,countValid=line.Count>=1&&line.Count<=1000;
-                if(item!=null&&item.Image!=null)c.Image(R(0,y+7,32,32),item.Image);
-                Label(c,45,y+7,300,32,Short(c,item!=null?item.Name:known?line.Id:line.Id+"（未找到）",300,15),15,known?TextMain:"#E5BD85");
+                SupplyLine line = pack.Lines[i]; UiItem item = m.Resources.Find(r => r.Id == line.Id); float y = i * 40;
+                bool known = item != null || m.Resources.Count == 0, countValid = line.Count >= 1 && line.Count <= 1000;
+                if (item != null && item.Image != null) c.Image(R(0, y + 8, 24, 24), item.Image);
+                float nameW = rowW - 32 - 60 - 34 - 12;
+                c.Text(R(32, y, nameW, 40), Short(c, item != null ? item.Name : known ? line.Id : line.Id + "（未找到）", nameW, 13), 13, known ? TextMain : Warn, false, 0);
                 // A bad quantity is outlined on its own row, not only in the summary below.
-                c.Fill(R(358,y+5,121,36),countValid?Border:"#C77883",8);c.Fill(R(359,y+6,119,34),"#15181E",7);
-                line.Quantity=c.Input(R(365,y+9,107,28),"pack.quantity."+i,line.Quantity,4,true);
-                if(Button(c,R(492,y+6,60,34),"pack.remove."+i,"移除",0,true)){pack.Lines.RemoveAt(i);break;}
-                Rule(c,0,y+48,552);
+                UiRect quantity = R(rowW - 60 - 34, y + 6, 60, 28);
+                InputFrame(c, quantity, c.Focused("pack.quantity." + i), !countValid, 7);
+                line.Quantity = c.Input(quantity.Inset(2), "pack.quantity." + i, line.Quantity, 4, true);
+                UiRect drop = R(rowW - 28, y + 7, 28, 26); bool hover = c.Hover(drop);
+                if (hover) c.Fill(drop, Raise, 6);
+                Glyph(c, "close", drop.X + 7, drop.Y + 6, 14, hover ? TextMain : Quiet, hover ? Raise : Background);
+                if (c.Hit(drop, "pack.remove." + i, true)) { pack.Lines.RemoveAt(i); break; }
+                if (i < pack.Lines.Count - 1) c.Line(0, y + 40, rowW, y + 40, Divider, 1);
             }
             c.EndScroll();
-            if(pack.Lines.Count==0){c.Text(R(554,350,578,30),"这个物资包还是空的",16,Muted,false,1);c.Text(R(554,386,578,24),"用上方搜索加入物品，或在资源页点“加入物资包”。",13,Quiet,false,1);}
-            int total;string error=PackError(m,pack,out total);bool noCatalog=m.Resources.Count==0;
-            string summary=error==null?pack.Lines.Count+" 种资源 · 合计 "+total+" 件":pack.Lines.Count==0?"先加入至少一种物品":noCatalog?"进入地图后可校验并添加":error;
-            Label(c,554,585,578,24,Short(c,summary,578,13),13,error==null||pack.Lines.Count==0||noCatalog?Muted:"#F2AAB4");
-            if(Chip(c,R(554,624,138,32),"pack.location.target","目标附近",m.Location==0))m.Location=0;
-            if(Chip(c,R(700,624,138,32),"pack.location.center","画面中心",m.Location==1))m.Location=1;
-            Note(c,854,628,278,m.Location==0&&m.SelectionCount==0?"无目标，使用画面中心":"生成后由村民搬运入库");
-            string execute=m.Busy?"正在生成…":error==null?"添加整包 · "+total+" 件":pack.Lines.Count==0?"请先加入物品":noCatalog?"进入地图后可添加":"请先修正清单";
-            if(Button(c,R(554,674,578,40),"pack.execute",execute,1,m.Ready&&error==null&&!m.Busy))m.Emit("pack.execute","");
+            if (pack.Lines.Count == 0) c.Text(R(X0, 412, BodyW, 20), "这个物资包还是空的，用上方搜索加入物品", 12, Quiet, false, 1);
+
+            int total; string error = PackError(m, pack, out total); bool noCatalog = m.Resources.Count == 0;
+            string summary = error == null ? pack.Lines.Count + " 种资源 · 合计 " + total + " 件" : pack.Lines.Count == 0 ? "先加入至少一种物品" : noCatalog ? "进入地图后可校验并添加" : error;
+            c.Text(R(X0, 492, BodyW, 20), Short(c, summary, BodyW, 12), 12, error == null || pack.Lines.Count == 0 || noCatalog ? Muted : Danger, false, 0);
+            int location = Segmented(c, R(X0, 520, 176, 34), new string[] { "pack.location.target", "pack.location.center" }, new string[] { "目标附近", "画面中心" }, null, m.Location, true, 12);
+            if (location >= 0) m.Location = location;
+            string execute = m.Busy ? "生成中…" : error == null ? "添加整包 " + total + " 件" : pack.Lines.Count == 0 ? "先加入物品" : noCatalog ? "进入地图后可用" : "请先修正清单";
+            if (Button(c, R(Right - 128, 520, 128, 34), "pack.execute", execute, 1, m.Ready && error == null && !m.Busy)) m.Emit("pack.execute", "");
         }
-        private static void DrawPreferences(UiCanvas c,UiModel m)
+
+        // ---------- 设置 ----------
+        private static void DrawSettings(UiCanvas c, UiModel m)
         {
-            Card(c,R(MainX,126,560,394),Surface);c.Text(R(MainX+20,145,510,28),"操作快捷键",18,TextMain,true,0);
-            Note(c,MainX+20,183,510,"点击按键按钮，再按新键；Esc 取消录入。");
-            string[] names={"快速完成建造","杀死选中单位","重复添加资源"};
-            for(int i=0;i<3;i++)
+            Section(c, BodyY, "动作快捷键", null, null, false); SectionNote(c, BodyY, "面板关闭时生效");
+            string[] names = { "快速完成建造", "杀死选中单位", "重复添加资源" };
+            string[] notes = { "作用于选中的未完工建筑", "含村民时需再按一次确认", "按“生成”页当前选择再添加一次" };
+            for (int i = 0; i < 3; i++)
             {
-                float y=235+i*82;Label(c,MainX+20,y,278,26,names[i],15,TextMain);
-                Note(c,MainX+20,y+29,278,"对应功能开关每次启动默认关闭");
-                if(Button(c,R(MainX+325,y+7,215,42),"key.capture."+i,m.CapturingKey==i?"请按新键…":m.Preferences.Keys[i],m.CapturingKey==i?1:0,true))m.Emit("key.capture",i.ToString());
+                float y = 118 + i * 46; bool capturing = m.CapturingKey == i;
+                c.Text(R(X0, y + 6, BodyW - 120, 19), names[i], 14, TextMain, false, 0);
+                c.Text(R(X0, y + 25, BodyW - 120, 16), notes[i], 12, Quiet, false, 0);
+                if (Button(c, R(Right - 44 - 62, y + 9, 62, 28), "key.capture." + i, capturing ? "按新键…" : Short(c, KeyName(m.Preferences.Keys[i]), 54, 13), capturing ? 1 : 0, true))
+                    m.Emit("key.capture", i.ToString());
+                UiRect toggle = R(Right - 36, y + 13, 36, 20);
+                if (i == 0) m.BuildHotkey = Switch(c, toggle, "build.hotkey", m.BuildHotkey);
+                else if (i == 1) m.KillHotkey = Switch(c, toggle, "kill.hotkey", m.KillHotkey);
+                else m.GiveHotkey = Switch(c, toggle, "give.hotkey", m.GiveHotkey);
+                c.Line(X0, y + 46, Right, y + 46, Divider, 1);
             }
-            Card(c,R(820,126,332,394),Surface);c.Text(R(840,145,292,28),"面板自动暂停",18,TextMain,true,0);
-            Note(c,840,189,220,"打开面板时暂停游戏");
-            m.Preferences.AutoPause=Switch(c,R(1092,189,40,23),"prefs.autopause",m.Preferences.AutoPause);
-            Note(c,840,242,292,"关闭面板后恢复打开前的倍率。");
-            Note(c,840,281,292,"原本已暂停时，不会自动继续。");
-            Note(c,840,320,292,"支持恢复 0.25× 与 0.5× 慢速。");
-            Note(c,840,359,292,"面板内选择速度会更新恢复倍率。");
-            Note(c,840,406,292,m.AutoPauseActive?"当前：面板持有暂停":"当前：由游戏控制时间");
-            Card(c,R(MainX,540,MainW,188),Surface);c.Text(R(MainX+20,559,MainW-40,28),"个人偏好",18,TextMain,true,0);
-            Label(c,MainX+20,601,96,30,"界面大小",15,TextMain);
-            for(int i=0;i<FeaturePolicy.UiScales.Length;i++)
-            {int percent=FeaturePolicy.UiScales[i];if(Chip(c,R(MainX+120+i*70,601,64,30),"ui.scale."+percent,percent+"%",m.Preferences.UiScale==percent))m.Preferences.UiScale=percent;}
-            Note(c,MainX+548,604,MainW-568,"100% 按分辨率自动适配，不超出屏幕");
-            Note(c,MainX+20,645,MainW-40,"自动保存收藏、物资包、数量、已选物品、窗口位置、键位和界面偏好；不保存属性锁与危险操作开关。");
-            if(Button(c,R(MainX+20,682,235,29),"prefs.default","恢复默认键位与界面偏好",0,true))m.Emit("prefs.default","");
-            Note(c,MainX+278,685,MainW-318,"保留你的收藏和物资包。");
+            c.Text(R(X0, 262, BodyW - 120, 19), "显示 / 隐藏面板", 14, TextMain, false, 0);
+            c.Text(R(X0, 281, BodyW - 120, 16), "固定键位", 12, Quiet, false, 0);
+            Key(c, R(Right - 44 - 62, 265, 62, 28), "F11");
+            c.Text(R(X0, 308, BodyW, 16), "开关每次启动默认关闭；点按键后按新键，Esc 取消", 12, Quiet, false, 0);
+
+            Section(c, 338, "面板", null, null, false);
+            c.Text(R(X0, 356, 70, 32), "停靠位置", 13, Muted, false, 0);
+            int[] docks = { DockLeft, DockRight, DockFloating };
+            int dock = Segmented(c, R(X0 + 72, 356, BodyW - 72, 32), new string[] { "dock.1", "dock.0", "dock.2" }, new string[] { "左侧", "右侧", "浮动" }, null, Array.IndexOf(docks, m.Preferences.Dock), true, 12);
+            if (dock >= 0) m.Preferences.Dock = docks[dock];
+            c.Text(R(X0, 396, 70, 32), "界面大小", 13, Muted, false, 0);
+            string[] scaleIds = new string[FeaturePolicy.UiScales.Length], scaleLabels = new string[FeaturePolicy.UiScales.Length];
+            for (int i = 0; i < scaleIds.Length; i++) { scaleIds[i] = "ui.scale." + FeaturePolicy.UiScales[i]; scaleLabels[i] = FeaturePolicy.UiScales[i] + "%"; }
+            int scale = Segmented(c, R(X0 + 72, 396, BodyW - 72, 32), scaleIds, scaleLabels, null, Array.IndexOf(FeaturePolicy.UiScales, m.Preferences.UiScale), true, 12);
+            if (scale >= 0) m.Preferences.UiScale = FeaturePolicy.UiScales[scale];
+
+            Section(c, 442, "偏好", null, null, false);
+            c.Text(R(X0, 458, BodyW, 17), "自动保存收藏、物资包、数量、键位与界面设置；", 12, Muted, false, 0);
+            c.Text(R(X0, 475, BodyW, 17), "不保存属性锁、危险操作开关与倍率。", 12, Muted, false, 0);
+            c.Text(R(X0, 492, BodyW, 17), "恢复默认只重置键位与界面，保留收藏和物资包。", 12, Muted, false, 0);
+            if (Button(c, R(X0, 514, 153, 32), "prefs.default", "恢复默认设置", 0, true)) m.Emit("prefs.default", "");
+            if (Button(c, R(X0 + 159, 514, 153, 32), "help.open", "使用说明", 0, true)) m.Navigate(PageHelp);
+            c.Text(R(X0, 554, BodyW, 18), "修改器 v" + m.Version + (String.IsNullOrEmpty(m.GameVersion) ? "" : " · Dawn of Man " + m.GameVersion), 12, Quiet, false, 1);
         }
     }
 }

@@ -130,7 +130,7 @@ internal static class RegressionChecks
                 MethodDefinition method = installed.MainModule.GetType(parts[0]).Methods.Single(m => m.Name == parts[1]);
                 Check(Calls(method, "DawnTrainer.Trainer", "BlockInput"), "installed input gate intact: " + gate);
             }
-            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "1.5.0", "shipping version is 1.5.0");
+            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "2.0.0", "shipping version is 2.0.0");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.EntityManager","morphBeing")&&Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.KnowledgeManager","onNewResidentAnimal"),"taming uses native species conversion and resident notification");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="CanTame"),"DawnOfMan.ContextAction","doable"),"taming preserves native capture eligibility checks");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","increaseCondition")&&Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","resetRepairMaterials"),"building repair updates model and resets native repair materials");
@@ -142,7 +142,8 @@ internal static class RegressionChecks
             Check(Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.TrainerView","RenderToast"),"hidden-panel hotkey results are shown as a toast");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="BlockInput"),"DawnTrainer.Trainer","PanelOwnsInput")&&Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.Trainer","TrackPointer"),"open panel takes input only over itself, while typing or during its own drags");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="HandleHotkeys"),"DawnTrainer.Trainer","HotkeyKillConfirmed"),"kill hotkey asks for a second press when villagers are selected");
-            Check(!Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"UnityEngine.Matrix4x4","Scale")&&Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.FeaturePolicy","PanelScale"),"panel text is drawn at screen resolution instead of scaled by GUI.matrix");
+            Check(!Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"UnityEngine.Matrix4x4","Scale")&&Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.FeaturePolicy","DrawerScale"),"panel text is drawn at screen resolution instead of scaled by GUI.matrix");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="OnGUI"),"DawnTrainer.FeaturePolicy","DockPosition")&&Calls(trainer.Methods.Single(m=>m.Name=="DrawInterfaceWindow"),"DawnTrainer.TrainerView","DragArea"),"runtime docks the drawer by policy and drags only by its title bar");
             Check(!Calls(trainer.Methods.Single(m=>m.Name=="Reset"),"DawnTrainer.Trainer","SetSpeed")&&Calls(trainer.Methods.Single(m=>m.Name=="Reset"),"DawnTrainer.OverlayPauseState","ResetSpeed")&&Calls(trainer.Methods.Single(m=>m.Name=="SyncOverlayPause"),"DawnTrainer.OverlayPauseState","ResumeReset"),"runtime reset uses deferred menu-safe speed restoration");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.Trainer","ObserveKillConfirmation")&&Calls(trainer.Methods.Single(m=>m.Name=="OnUiAction"),"DawnTrainer.Trainer","CancelKillConfirmation"),"kill confirmation observes selection changes every frame and cancels on navigation");
             foreach(string action in new[]{"CompleteSelected","KillSelected","SelectedVillagers","UpdateUiModel"})

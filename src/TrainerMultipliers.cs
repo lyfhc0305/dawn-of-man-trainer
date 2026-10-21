@@ -162,10 +162,10 @@ namespace DawnTrainer
             string label;
             switch (kind)
             {
-                case "storage": storageMultiplier = value; label = "封闭仓储"; break;
+                case "storage": storageMultiplier = value; label = "仓储容量"; break;
                 case "build": buildMultiplier = value; label = "建造速度"; break;
-                case "carry": carryMultiplier = value; label = "人物搬运"; break;
-                case "transport": transportMultiplier = value; label = "拖板与拖车"; break;
+                case "carry": carryMultiplier = value; label = "人力搬运"; break;
+                case "transport": transportMultiplier = value; label = "运输工具容量"; break;
                 default: throw new ArgumentException("未知倍率项目", "kind");
             }
             // Reapply from the original capacities on demand, including immediately restoring disabled limits.
@@ -174,8 +174,8 @@ namespace DawnTrainer
             if (storageMultiplier == 1 && carryMultiplier == 1 && transportMultiplier == 1) RestoreMultiplierSlots();
             UpdateMultiplierModel();
             if (WorldReady()) TransientSingleton<GameGuiManager>.CurrentInstance.requestRefresh();
-            Notify(label + "已设为 " + value + " 倍" + (kind == "build"
-                ? "；保留原生材料需求和完工奖励" : "；现有物品保留，降低容量后需先卸货"));
+            // The scope notes live on the efficiency page; the notice only confirms the new value.
+            Notify(label + "已设为 " + value + "×");
         }
 
         private void UpdateMultiplierModel()
