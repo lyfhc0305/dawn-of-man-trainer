@@ -130,7 +130,8 @@ internal static class RegressionChecks
                 MethodDefinition method = installed.MainModule.GetType(parts[0]).Methods.Single(m => m.Name == parts[1]);
                 Check(Calls(method, "DawnTrainer.Trainer", "BlockInput"), "installed input gate intact: " + gate);
             }
-            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "2.0.0", "shipping version is 2.0.0");
+            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "2.1.0", "shipping version is 2.1.0");
+            Check(Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.FeaturePolicy","PanelKey")&&Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.FeaturePolicy","EscapeEndsTyping"),"runtime F11, Shift+F11 and Esc use the tested panel key policy");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.EntityManager","morphBeing")&&Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.KnowledgeManager","onNewResidentAnimal"),"taming uses native species conversion and resident notification");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="CanTame"),"DawnOfMan.ContextAction","doable"),"taming preserves native capture eligibility checks");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","increaseCondition")&&Calls(trainer.Methods.Single(m=>m.Name=="RepairSelected"),"DawnOfMan.Structure","resetRepairMaterials"),"building repair updates model and resets native repair materials");
@@ -158,6 +159,19 @@ internal static class RegressionChecks
                 Check(Calls(installed.MainModule.GetType("DawnOfMan.Slot").Methods.Single(m=>m.Name==name),"DawnTrainer.Trainer","PrepareSlot"),"installed slot capacity gate: "+name);
             Check(Calls(installed.MainModule.GetType("DawnOfMan.Slot").Methods.Single(m=>m.Name=="getSpaceLeft"),"DawnTrainer.Trainer","NonnegativeSpace"),"installed overfull slots never report negative free space");
             Check(Calls(installed.MainModule.GetType("DawnOfMan.BeingStateBuilding").Methods.Single(m=>m.Name=="increaseBuildingOperation"),"DawnTrainer.Trainer","ScaleBuildWork"),"installed construction scales native work before native completion");
+            // Every native work progress scales once; plowing moves the plow and the field progress together.
+            string[] workMethods={"BeingStateRepairing.increaseBuildingOperation","BeingStateRecycling.increaseBuildingOperation","BeingStateCrafting.tick","BeingStateTreeAction.tick",
+                "BeingStateMining.tick","BeingStateMiningUnderground.tick","BeingStateGatheringProp.tick","BeingStateGatheringDetail.tick","BeingStateExtractingMud.tick","BeingStateExtractingWater.tick",
+                "BeingStateFishing.tick","BeingStatePlanting.tick","BeingStatePlowing.updatePlowing","BeingStateMilking.tick","BeingStateShearing.tick","BeingStateTaming.tick","BeingStateButchering.tick","BeingStateSlaughtering.update"};
+            foreach(string work in workMethods)
+            {
+                string[] parts=work.Split('.'); MethodDefinition method=installed.MainModule.GetType("DawnOfMan."+parts[0]).Methods.Single(m=>m.Name==parts[1]);
+                Check(Calls(method).Count(m=>m.DeclaringType.FullName=="DawnTrainer.Trainer"&&m.Name=="ScaleWork")==(parts[0]=="BeingStatePlowing"?2:1),"installed work progress scales once per progress value: "+work);
+            }
+            Check(Calls(installed.MainModule.GetType("DawnOfMan.CraftQueue").Methods.Single(m=>m.Name=="updateLaborlessCraftingProgress")).Count(m=>m.DeclaringType.FullName=="DawnTrainer.Trainer"&&m.Name=="ScaleDryWork")==1&&
+                !Calls(installed.MainModule.GetType("DawnOfMan.CraftQueue").Methods.Single(m=>m.Name=="increaseRecipeCraftingProgress"),"DawnTrainer.Trainer","ScaleWork"),"installed laborless drying scales only in its rack tick, so labor crafting is not scaled twice");
+            foreach(string need in new[]{"BeingStateCooking","BeingStateEating","BeingStateDrinking","BeingStateResting"})
+                Check(!Calls(installed.MainModule.GetType("DawnOfMan."+need).Methods.Single(m=>m.Name=="tick")).Any(m=>m.DeclaringType.FullName=="DawnTrainer.Trainer"),"installed personal needs keep native time: "+need);
             foreach(string type in new[]{"DawnOfMan.AiRuleGoGetResourceToStore","DawnOfMan.AiRuleTaskGetResource"})
                 Check(Calls(installed.MainModule.GetType(type).Methods.Single(m=>m.Name=="run"),"DawnTrainer.Trainer","ResourceCarrySlots"),"installed ordinary resource planning scales carry capacity: "+type);
             Check(!Calls(installed.MainModule.GetType("DawnOfMan.PhysicalEntity").Methods.Single(m=>m.Name=="countEmptySlots"),"DawnTrainer.Trainer","CarryPlanSlots"),"general empty-slot queries keep their native meaning for bodies and equipment");
