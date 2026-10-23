@@ -2,7 +2,9 @@
 
 在游戏内按 **F11** 打开控制台，管理人物状态、资源、动物、建筑与世界。面板停靠在屏幕右侧，不挡住地图中央，可收起为窄栏或拖成浮动窗口。
 
-**[下载最新版本](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest)**：选择 `DawnOfManTrainer-v2.1.0.zip`。仓库的 **Code → Download ZIP** 是源码，不能直接安装。
+当前版本为 **2.1.1**，修复 2.1.0 在制作动作中可能触发的无效程序异常。已安装 2.1.0 的用户请退出游戏后，运行新版安装器并点击“安装 / 更新”。
+
+**[下载最新版本](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest)**：选择 `DawnOfManTrainer-v2.1.1.zip`。仓库的 **Code → Download ZIP** 是源码，不能直接安装。
 
 ## 截图
 
@@ -52,7 +54,7 @@
 
 适用于 Windows 上的 Steam 版 Dawn of Man 1.8.3 / 1.8.4。安装器会校验游戏程序集，不匹配时不会安装。
 
-1. 从 [Releases](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest) 下载并完整解压 `DawnOfManTrainer-v2.1.0.zip`。
+1. 从 [Releases](https://github.com/lyfhc0305/dawn-of-man-trainer/releases/latest) 下载并完整解压 `DawnOfManTrainer-v2.1.1.zip`。
 2. **完全退出游戏**，双击 `人类黎明修改器安装器.exe`，等待自动查找游戏。
 3. 没找到时点“浏览…”，选择同时包含 `DawnOfMan.exe` 和 `DawnOfMan_Data` 的游戏文件夹。不清楚位置时，可在 Steam 库中右键游戏，选择“管理”中的“浏览本地文件”。
 4. 点击“安装 / 更新”，等待成功提示。
@@ -82,6 +84,11 @@
 - 安装包随附第三方依赖 Mono.Cecil 0.11.6，许可证见 [Mono.Cecil.LICENSE.txt](Mono.Cecil.LICENSE.txt)。仓库和安装包均不包含游戏原程序集或游戏素材。
 
 ## 更新记录
+
+**v2.1.1 · 2026-10-23**
+- 修复工作进度挂接使短跳转溢出的问题，避免制作动作触发无效程序异常；对所有工作速度挂接统一处理。
+- 安装时检查写入后的跳转目标，校验模式也会拒绝跳转损坏的已有安装；重新安装可从原文件备份修复。
+- Windows 离线检查：安装器 164 项、独立安装包 65 项、功能与程序集 193 项、界面 380 项通过。尚未完成进入地图后的持续制作实测。
 
 **v2.1.0 · 2026-10-21**
 - 效率页新增四项工作速度倍率：制作、晾晒、采集、农牧，各 1–20×；建造速度同时覆盖修理与拆解。

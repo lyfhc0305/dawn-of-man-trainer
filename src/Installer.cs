@@ -270,6 +270,31 @@ internal static class Installer
         if (loads.Length != 1) throw new Exception("工作进度方法结构不匹配：" + method.FullName + "，未修改任何游戏文件。");
         ILProcessor il = method.Body.GetILProcessor(); Instruction at = loads[0];
         foreach (Instruction instruction in hook) { il.InsertAfter(at, instruction); at = instruction; }
+        // Inserting a hook can push an existing short branch beyond its signed-byte
+        // range. Cecil writes that displacement without widening it automatically.
+        foreach (Instruction instruction in method.Body.Instructions) ExpandBranch(instruction);
+    }
+
+    private static void ValidatePatchedBranches(ModuleDefinition module)
+    {
+        foreach (MethodDefinition method in module.Types.SelectMany(type => type.Methods).Where(method => method.HasBody))
+        {
+            if (!method.Body.Instructions.Any(instruction =>
+            {
+                MethodReference call = instruction.Operand as MethodReference;
+                return call != null && call.DeclaringType.FullName == "DawnTrainer.Trainer";
+            })) continue;
+            foreach (Instruction instruction in method.Body.Instructions)
+            {
+                OperandType operand = instruction.OpCode.OperandType;
+                Instruction target = instruction.Operand as Instruction;
+                Instruction[] targets = instruction.Operand as Instruction[];
+                if (((operand == OperandType.InlineBrTarget || operand == OperandType.ShortInlineBrTarget) &&
+                    (target == null || !method.Body.Instructions.Contains(target))) ||
+                    (operand == OperandType.InlineSwitch && (targets == null || targets.Any(item => item == null || !method.Body.Instructions.Contains(item)))))
+                    throw new Exception("修改器挂接后的跳转指令无效：" + method.FullName + "，请重新安装修复版。");
+            }
+        }
     }
 
     private static void WorkHooks(ModuleDefinition module, ModuleDefinition mod, FieldDefinition being)
@@ -550,6 +575,8 @@ internal static class Installer
             if (!File.Exists(trainer)) throw new Exception("安装包缺少 DawnOfManTrainer.dll。");
             string trainerHash = Hash(trainer);
             if (verify && installed && (!File.Exists(plugin) || Hash(plugin) != Hash(trainer))) throw new Exception("已安装功能库缺失或与此安装包不同，请退出游戏后重新运行安装器。");
+            if (verify && installed)
+                using (AssemblyDefinition current = AssemblyDefinition.ReadAssembly(assembly)) ValidatePatchedBranches(current.MainModule);
             DefaultAssemblyResolver resolver = new DefaultAssemblyResolver(); resolver.AddSearchDirectory(managed); resolver.AddSearchDirectory(bundle);
             // Updates re-patch the verified original, so the game always matches this library's hooks.
             using (AssemblyDefinition gameAssembly = AssemblyDefinition.ReadAssembly(installed ? backup : assembly, new ReaderParameters { AssemblyResolver = resolver, InMemory = true }))
@@ -567,7 +594,10 @@ internal static class Installer
                 {
                     gameAssembly.Write(staged);
                     using (AssemblyDefinition check = AssemblyDefinition.ReadAssembly(staged))
-                    { if (!check.MainModule.AssemblyReferences.Any(a => a.Name == "DawnOfManTrainer")) throw new Exception("写入校验失败。"); }
+                    {
+                        if (!check.MainModule.AssemblyReferences.Any(a => a.Name == "DawnOfManTrainer")) throw new Exception("写入校验失败。");
+                        ValidatePatchedBranches(check.MainModule);
+                    }
                     string patchedHash = Hash(staged);
                     WriteDurable(stagedManifest, patchedHash);
                     if (!File.Exists(backup))

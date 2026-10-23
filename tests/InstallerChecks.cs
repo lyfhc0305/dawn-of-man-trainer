@@ -244,7 +244,18 @@ internal static class InstallerChecks
                 }
             }
             if (step[2] == "System.Boolean") body.Add(Instruction.Create(OpCodes.Ldc_I4_1));
-            body.Add(Instruction.Create(OpCodes.Ret)); Body(method, body.ToArray());
+            body.Add(Instruction.Create(OpCodes.Ret));
+            if (step[0] == "DawnOfMan.BeingStateCrafting")
+            {
+                // Match the real crafting tick's nearly full short forward branch. The
+                // work hook grows this span beyond sbyte.MaxValue when written to disk.
+                FieldDefinition skip = AddField(type, "SkipWork", module.TypeSystem.Boolean, FieldAttributes.Public);
+                Instruction end = body.Last();
+                body.InsertRange(3, new[] { Instruction.Create(OpCodes.Ldarg_0), Instruction.Create(OpCodes.Ldfld, skip), Instruction.Create(OpCodes.Brtrue_S, end) });
+                while (body.Skip(6).Take(body.Count - 7).Sum(instruction => instruction.GetSize()) < 124)
+                    body.Insert(body.Count - 1, Instruction.Create(OpCodes.Nop));
+            }
+            Body(method, body.ToArray());
         }
         TypeDefinition structure = WorkOwner(module, "Structure"), queue = AddType(module, "DawnOfMan.CraftQueue");
         FieldDefinition rack = AddField(queue, "mStructure", structure, FieldAttributes.Private), crafted = AddField(queue, "NativeStep", module.TypeSystem.Single, FieldAttributes.Public);
@@ -698,6 +709,14 @@ internal static class InstallerChecks
                 Check(scaled && (float)type.GetField("EvaluationTimer").GetValue(work) == 2f && (int)trainer.GetField("WorkCalls").GetValue(null) == before + targets.Length &&
                     Object.ReferenceEquals(trainer.GetField("LastState").GetValue(null), work) && trainer.GetField("LastBeing").GetValue(null).GetType().FullName == "DawnOfMan.Being",
                     "work step " + type.Name + "." + step[1] + " scales its progress with the real state and performer, and keeps other timers native");
+                if (type.FullName == "DawnOfMan.BeingStateCrafting")
+                {
+                    type.GetField("SkipWork").SetValue(work, true);
+                    before = (int)trainer.GetField("WorkCalls").GetValue(null);
+                    type.GetMethod(step[1]).Invoke(work, new object[] { 2f });
+                    Check((int)trainer.GetField("WorkCalls").GetValue(null) == before,
+                        "crafting branch still skips work after the inserted hook exceeds the short-branch range");
+                }
             }
             Type queueType = game.GetType("DawnOfMan.CraftQueue"); object queue = Activator.CreateInstance(queueType);
             Check((bool)queueType.GetMethod("updateLaborlessCraftingProgress").Invoke(queue, new object[] { 2f }) && (float)queueType.GetField("NativeStep").GetValue(queue) == 10f &&
@@ -738,6 +757,22 @@ internal static class InstallerChecks
             Check(ExecuteHooks(fixture) == 0, phase + " executes every new hook and preserves body/equipment/native queries");
             Check(Run(fixture, bundle, "--verify") == 0 && output.Contains("11 个挂接入口、35 个游戏方法、39 处挂接调用"), phase + " verify reports actual hook counts");
         }
+
+        Fixture brokenBranch = new Fixture("broken-crafting-branch");
+        Check(Run(brokenBranch, bundle2) == 0, "prepare installed crafting branch corruption fixture");
+        using (AssemblyDefinition damaged = AssemblyDefinition.ReadAssembly(brokenBranch.Assembly))
+        {
+            MethodDefinition crafting = damaged.MainModule.GetType("DawnOfMan.BeingStateCrafting").Methods.Single(method => method.Name == "tick");
+            crafting.Body.Instructions.Single(instruction => instruction.OpCode == OpCodes.Brtrue).OpCode = OpCodes.Brtrue_S;
+            damaged.Write(brokenBranch.Assembly + ".damaged");
+        }
+        File.Copy(brokenBranch.Assembly + ".damaged", brokenBranch.Assembly, true);
+        File.WriteAllText(brokenBranch.Manifest, Hash(brokenBranch.Assembly));
+        string damagedSnapshot = brokenBranch.Snapshot();
+        Check(Run(brokenBranch, bundle2, "--verify") == 1 && output.Contains("跳转指令无效") && brokenBranch.Snapshot() == damagedSnapshot,
+            "verify rejects a damaged crafting branch even when its recorded hash matches, without changing files");
+        Check(Run(brokenBranch, bundle2) == 0 && Run(brokenBranch, bundle2, "--verify") == 0,
+            "reinstall repairs a damaged crafting branch from the original backup");
 
         foreach (string name in new[] { "PrepareSlot", "ResourceCarrySlots", "ResourceCarrySpace", "NonnegativeSpace", "ScaleBuildWork", "ScaleWork", "ScaleDryWork" })
         {

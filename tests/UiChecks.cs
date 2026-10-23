@@ -195,7 +195,7 @@ internal static class UiChecks
         }
         model.Preferences.Collapsed = false;
         model.Page = TrainerView.PageSettings;
-        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text.Contains("Dawn of Man 1.8.3")) && !c.Texts.Any(t => t.Text.Contains("1.8.4")) && c.Texts.Any(t => t.Text.Contains("v2.1.0")), "settings show the supplied game version and the trainer version");
+        using (CheckCanvas c = Render(model)) Check(c.Texts.Any(t => t.Text.Contains("Dawn of Man 1.8.3")) && !c.Texts.Any(t => t.Text.Contains("1.8.4")) && c.Texts.Any(t => t.Text.Contains("v2.1.1")), "settings show the supplied game version and the trainer version");
         model.Page = TrainerView.PageHelp;
         using (CheckCanvas c = Render(model))
         {
@@ -541,8 +541,8 @@ internal static class UiChecks
 
     private static void MultiplierUiChecks(UiModel model)
     {
-        Check(model.Version == "2.1.0" && model.StorageMultiplier == 1 && model.BuildMultiplier == 1 && model.CarryMultiplier == 1 && model.TransportMultiplier == 1 &&
-            model.CraftMultiplier == 1 && model.DryMultiplier == 1 && model.GatherMultiplier == 1 && model.FarmMultiplier == 1 && model.EfficiencyTab == 0, "eight integer multipliers start at 1x on the speed tab in version 2.1.0");
+        Check(model.Version == "2.1.1" && model.StorageMultiplier == 1 && model.BuildMultiplier == 1 && model.CarryMultiplier == 1 && model.TransportMultiplier == 1 &&
+            model.CraftMultiplier == 1 && model.DryMultiplier == 1 && model.GatherMultiplier == 1 && model.FarmMultiplier == 1 && model.EfficiencyTab == 0, "eight integer multipliers start at 1x on the speed tab in version 2.1.1");
         model.Page = TrainerView.PageEfficiency;
         // Speed tab first (index 0-4), then capacity tab (5-7).
         string[] keys = { "build", "craft", "dry", "gather", "farm", "storage", "carry", "transport" }; int[] maximums = { 20, 20, 20, 20, 20, 10, 10, 10 };

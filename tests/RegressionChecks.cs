@@ -130,7 +130,7 @@ internal static class RegressionChecks
                 MethodDefinition method = installed.MainModule.GetType(parts[0]).Methods.Single(m => m.Name == parts[1]);
                 Check(Calls(method, "DawnTrainer.Trainer", "BlockInput"), "installed input gate intact: " + gate);
             }
-            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "2.1.0", "shipping version is 2.1.0");
+            Check((string)trainer.Fields.Single(f => f.Name == "Version").Constant == "2.1.1", "shipping version is 2.1.1");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.FeaturePolicy","PanelKey")&&Calls(trainer.Methods.Single(m=>m.Name=="Tick"),"DawnTrainer.FeaturePolicy","EscapeEndsTyping"),"runtime F11, Shift+F11 and Esc use the tested panel key policy");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.EntityManager","morphBeing")&&Calls(trainer.Methods.Single(m=>m.Name=="TameSelected"),"DawnOfMan.KnowledgeManager","onNewResidentAnimal"),"taming uses native species conversion and resident notification");
             Check(Calls(trainer.Methods.Single(m=>m.Name=="CanTame"),"DawnOfMan.ContextAction","doable"),"taming preserves native capture eligibility checks");
@@ -167,6 +167,9 @@ internal static class RegressionChecks
             {
                 string[] parts=work.Split('.'); MethodDefinition method=installed.MainModule.GetType("DawnOfMan."+parts[0]).Methods.Single(m=>m.Name==parts[1]);
                 Check(Calls(method).Count(m=>m.DeclaringType.FullName=="DawnTrainer.Trainer"&&m.Name=="ScaleWork")==(parts[0]=="BeingStatePlowing"?2:1),"installed work progress scales once per progress value: "+work);
+                Check(method.Body.Instructions.Where(i => i.OpCode.OperandType == OperandType.InlineBrTarget || i.OpCode.OperandType == OperandType.ShortInlineBrTarget)
+                    .All(i => i.Operand is Instruction && method.Body.Instructions.Contains((Instruction)i.Operand)),
+                    "installed work branches resolve after serialization: " + work);
             }
             Check(Calls(installed.MainModule.GetType("DawnOfMan.CraftQueue").Methods.Single(m=>m.Name=="updateLaborlessCraftingProgress")).Count(m=>m.DeclaringType.FullName=="DawnTrainer.Trainer"&&m.Name=="ScaleDryWork")==1&&
                 !Calls(installed.MainModule.GetType("DawnOfMan.CraftQueue").Methods.Single(m=>m.Name=="increaseRecipeCraftingProgress"),"DawnTrainer.Trainer","ScaleWork"),"installed laborless drying scales only in its rack tick, so labor crafting is not scaled twice");

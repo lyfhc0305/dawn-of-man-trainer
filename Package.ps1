@@ -1,5 +1,5 @@
 param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot 'release\v2.1.0')
+    [string]$OutputPath = (Join-Path $PSScriptRoot 'release\v2.1.1')
 )
 $ErrorActionPreference = 'Stop'
 if (-not [IO.Path]::IsPathRooted($OutputPath)) { $OutputPath = Join-Path $PSScriptRoot $OutputPath }
@@ -18,6 +18,6 @@ foreach ($item in $releaseFiles) {
     Copy-Item -LiteralPath $source -Destination $published -Force
     $publishPaths += $published
 }
-$archive = Join-Path $destination 'DawnOfManTrainer-v2.1.0.zip'
+$archive = Join-Path $destination 'DawnOfManTrainer-v2.1.1.zip'
 Compress-Archive -LiteralPath $publishPaths -DestinationPath $archive -Force
 Write-Output ('安装器与说明已打包至：' + $destination)

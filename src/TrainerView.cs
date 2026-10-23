@@ -21,7 +21,7 @@ namespace DawnTrainer
 
     internal sealed partial class UiModel
     {
-        internal string Version = "2.1.0", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
+        internal string Version = "2.1.1", Search = "", Quantity = "10", AnimalQuantity = "1", Status = "准备就绪";
         internal string GameVersion = "";
         internal bool Ready, Domestic, BuildHotkey, KillHotkey, GiveHotkey, Busy, StatusError;
         internal bool[] Locks = new bool[7];

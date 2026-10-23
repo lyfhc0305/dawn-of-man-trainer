@@ -67,6 +67,24 @@ $installedHash = FileHash $assembly
 Check ($installedHash -ne $originalHash) 'install patches sandbox assembly'
 Check ((FileHash (Join-Path $sandbox 'DawnTrainer\Assembly-CSharp.dll.original')) -eq $originalHash) 'install preserves original backup'
 Check ((FileHash $plugin) -eq (FileHash (Join-Path $PSScriptRoot 'DawnOfManTrainer.dll'))) 'installed plugin equals embedded current build'
+Add-Type -Path (Join-Path $PSScriptRoot 'Mono.Cecil.dll')
+$patchedAssembly = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($assembly)
+try {
+    foreach ($patchedType in $patchedAssembly.MainModule.Types) {
+        foreach ($patchedMethod in $patchedType.Methods) {
+            if (-not $patchedMethod.HasBody) { continue }
+            $hookCalls = @($patchedMethod.Body.Instructions | Where-Object {
+                $_.Operand -is [Mono.Cecil.MethodReference] -and $_.Operand.DeclaringType.FullName -eq 'DawnTrainer.Trainer'
+            })
+            if ($hookCalls.Count -eq 0) { continue }
+            $invalidBranches = @($patchedMethod.Body.Instructions | Where-Object {
+                ($_.OpCode.OperandType.ToString() -in @('InlineBrTarget','ShortInlineBrTarget')) -and
+                ($null -eq $_.Operand -or -not $patchedMethod.Body.Instructions.Contains($_.Operand))
+            })
+            Check ($invalidBranches.Count -eq 0) ('serialized hook branches are valid: ' + $patchedMethod.FullName)
+        }
+    }
+} finally { $patchedAssembly.Dispose() }
 RunSetup @('--verify', $sandbox)
 Check ($script:lastOutput.Contains('安装状态')) 'installed verify checks backup and hooks'
 RunSetup @($sandbox)
